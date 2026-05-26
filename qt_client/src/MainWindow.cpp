@@ -141,10 +141,32 @@ void MainWindow::onSendMessage()
         .arg(text.toHtmlEscaped()));
 }
 
-void MainWindow::onMessageReceived(const QString& from, const QString& body, time_t timestamp)
+void MainWindow::onUserListReceived(const QStringList& users)
+{
+    userList->clear();
+
+    for (const QString& user : users) {
+        QListWidgetItem* item = new QListWidgetItem(user);
+
+        if (user.endsWith("*")) {
+            // Онлайн — зелёный
+            item->setForeground(Qt::darkGreen);
+            item->setText(user.left(user.length() - 1));
+        }
+        else {
+            // Офлайн — серый
+            item->setForeground(Qt::gray);
+        }
+
+        userList->addItem(item);
+    }
+}
+
+void MainWindow::onMessageReceived(const QString& from, const QString& body, long timestamp)
 {
     char timeStr[64];
-    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", localtime(&timestamp));
+    time_t ts = (time_t)timestamp;
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", localtime(&ts));
 
     // Если чат открыт с этим пользователем — показываем сразу
     if (from == currentChatUser) {
@@ -154,6 +176,7 @@ void MainWindow::onMessageReceived(const QString& from, const QString& body, tim
             .arg(body.toHtmlEscaped()));
     }
     else {
+
         // Добавляем жирный шрифт к имени пользователя в списке
         for (int i = 0; i < userList->count(); ++i) {
             QListWidgetItem* item = userList->item(i);
@@ -164,14 +187,6 @@ void MainWindow::onMessageReceived(const QString& from, const QString& body, tim
                 break;
             }
         }
-    }
-}
-
-void MainWindow::onUserListReceived(const QStringList& users)
-{
-    userList->clear();
-    for (const QString& user : users) {
-        userList->addItem(user);
     }
 }
 

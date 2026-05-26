@@ -19,11 +19,28 @@ std::map<std::string, int> userToSocket;
 std::mutex clientsMutex;
 
 void broadcastUserList() {
+    // Получаем ВСЕХ пользователей из БД
+    std::vector<std::string> allUsers = Database::getInstance().getAllUsers();
+
     std::string list = "/users ";
-    for (auto& [sock, name] : clients) {
-        list += name + " ";
+    for (const auto& name : allUsers) {
+        // Можно добавить отметку, кто онлайн
+        bool isOnline = false;
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            isOnline = (userToSocket.find(name) != userToSocket.end());
+        }
+
+        if (isOnline) {
+            list += name + "* ";  // * значит онлайн
+        }
+        else {
+            list += name + " ";   // без звёздочки — офлайн
+        }
     }
 
+    // Рассылаем всем клиентам
+    std::lock_guard<std::mutex> lock(clientsMutex);
     for (auto& [sock, name] : clients) {
         send(sock, list.c_str(), list.length(), 0);
         send(sock, "\n", 1, 0);
@@ -42,6 +59,7 @@ void handleClient(int clientSocket) {
     while (!username.empty() && (username.back() == '\n' || username.back() == '\r')) {
         username.pop_back();
     }
+    Database::getInstance().registerUser(username);
 
     std::cout << "[DEBUG] User registered: " << username << std::endl;
 

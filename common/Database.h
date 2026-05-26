@@ -2,7 +2,6 @@
 #define DATABASE_H
 
 #include <sqlite3.h>
-
 #include <algorithm>
 #include <ctime>
 #include <iostream>
@@ -12,11 +11,8 @@
 
 class Database {
 private:
-
     sqlite3* db = nullptr;
-
     std::mutex dbMutex;
-
     static Database* instance;
 
     Database() {
@@ -24,27 +20,24 @@ private:
         createTables();
     }
 
+    ~Database() {
+        if (db) {
+            sqlite3_close(db);
+            db = nullptr;
+        }
+    }
+
     void open() {
-
         int rc = sqlite3_open("messenger.db", &db);
-
         if (rc != SQLITE_OK) {
-
-            std::cerr
-                << "Can't open database: "
-                << sqlite3_errmsg(db)
-                << std::endl;
+            std::cerr << "Can't open database: " << sqlite3_errmsg(db) << std::endl;
         }
         else {
-
-            std::cout
-                << "Database opened successfully"
-                << std::endl;
+            std::cout << "Database opened successfully" << std::endl;
         }
     }
 
     void createTables() {
-
         const char* sqlMessages = R"(
             CREATE TABLE IF NOT EXISTS private_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,53 +58,42 @@ private:
             );
         )";
 
+        const char* sqlUsers = R"(
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+        )";
+
         char* errMsg = nullptr;
 
-        sqlite3_exec(
-            db,
-            sqlMessages,
-            nullptr,
-            nullptr,
-            &errMsg
-        );
-
+        sqlite3_exec(db, sqlMessages, nullptr, nullptr, &errMsg);
         if (errMsg) {
-
-            std::cerr
-                << "SQL error: "
-                << errMsg
-                << std::endl;
-
+            std::cerr << "SQL error: " << errMsg << std::endl;
             sqlite3_free(errMsg);
+            errMsg = nullptr;
         }
 
-        sqlite3_exec(
-            db,
-            sqlLogs,
-            nullptr,
-            nullptr,
-            &errMsg
-        );
-
+        sqlite3_exec(db, sqlLogs, nullptr, nullptr, &errMsg);
         if (errMsg) {
+            std::cerr << "SQL error: " << errMsg << std::endl;
+            sqlite3_free(errMsg);
+            errMsg = nullptr;
+        }
 
-            std::cerr
-                << "SQL error: "
-                << errMsg
-                << std::endl;
-
+        sqlite3_exec(db, sqlUsers, nullptr, nullptr, &errMsg);
+        if (errMsg) {
+            std::cerr << "SQL error: " << errMsg << std::endl;
             sqlite3_free(errMsg);
         }
     }
 
 public:
-
     static Database& getInstance() {
-
         if (!instance) {
             instance = new Database();
         }
-
         return *instance;
     }
 
@@ -121,7 +103,6 @@ public:
         const std::string& message,
         time_t timestamp
     ) {
-
         std::lock_guard<std::mutex> lock(dbMutex);
 
         const char* sql =
@@ -130,63 +111,21 @@ public:
             "VALUES (?, ?, ?, ?, 0);";
 
         sqlite3_stmt* stmt = nullptr;
-
-        int rc = sqlite3_prepare_v2(
-            db,
-            sql,
-            -1,
-            &stmt,
-            nullptr
-        );
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 
         if (rc != SQLITE_OK) {
-
-            std::cerr
-                << "Prepare failed: "
-                << sqlite3_errmsg(db)
-                << std::endl;
-
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
             return;
         }
 
-        sqlite3_bind_text(
-            stmt,
-            1,
-            from.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            2,
-            to.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            3,
-            message.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_int64(
-            stmt,
-            4,
-            timestamp
-        );
+        sqlite3_bind_text(stmt, 1, from.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, to.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, message.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 4, timestamp);
 
         rc = sqlite3_step(stmt);
-
         if (rc != SQLITE_DONE) {
-
-            std::cerr
-                << "Insert failed: "
-                << sqlite3_errmsg(db)
-                << std::endl;
+            std::cerr << "Insert failed: " << sqlite3_errmsg(db) << std::endl;
         }
 
         sqlite3_finalize(stmt);
@@ -197,9 +136,7 @@ public:
         const std::string& user2,
         int limit = 50
     ) {
-
         std::lock_guard<std::mutex> lock(dbMutex);
-
         std::vector<std::string> history;
 
         const char* sql = R"(
@@ -214,119 +151,38 @@ public:
         )";
 
         sqlite3_stmt* stmt = nullptr;
-
-        int rc = sqlite3_prepare_v2(
-            db,
-            sql,
-            -1,
-            &stmt,
-            nullptr
-        );
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 
         if (rc != SQLITE_OK) {
-
-            std::cerr
-                << "Prepare failed: "
-                << sqlite3_errmsg(db)
-                << std::endl;
-
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
             return history;
         }
 
-        sqlite3_bind_text(
-            stmt,
-            1,
-            user1.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            2,
-            user2.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            3,
-            user2.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            4,
-            user1.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_int(
-            stmt,
-            5,
-            limit
-        );
+        sqlite3_bind_text(stmt, 1, user1.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, user2.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, user2.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, user1.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 5, limit);
 
         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+            const char* fromText = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            const char* msgText = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+            time_t ts = sqlite3_column_int64(stmt, 2);
 
-            const char* fromText =
-                reinterpret_cast<const char*>(
-                    sqlite3_column_text(stmt, 0)
-                    );
-
-            const char* msgText =
-                reinterpret_cast<const char*>(
-                    sqlite3_column_text(stmt, 1)
-                    );
-
-            time_t ts =
-                sqlite3_column_int64(stmt, 2);
-
-            std::string from =
-                fromText ? fromText : "";
-
-            std::string msg =
-                msgText ? msgText : "";
+            std::string from = fromText ? fromText : "";
+            std::string msg = msgText ? msgText : "";
 
             char timeStr[64];
-
             tm timeInfo{};
-
             localtime_r(&ts, &timeInfo);
+            strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeInfo);
 
-            strftime(
-                timeStr,
-                sizeof(timeStr),
-                "%H:%M:%S",
-                &timeInfo
-            );
-
-            std::string line =
-                "[" +
-                std::string(timeStr) +
-                "] " +
-                from +
-                ": " +
-                msg;
-
+            std::string line = "[" + std::string(timeStr) + "] " + from + ": " + msg;
             history.push_back(line);
-
-            std::cout
-                << "[DB HISTORY] "
-                << line
-                << std::endl;
         }
 
         sqlite3_finalize(stmt);
-
-        std::reverse(
-            history.begin(),
-            history.end()
-        );
+        std::reverse(history.begin(), history.end());
 
         return history;
     }
@@ -336,79 +192,70 @@ public:
         const std::string& details,
         time_t timestamp
     ) {
-
         std::lock_guard<std::mutex> lock(dbMutex);
 
-        const char* sql =
-            "INSERT INTO logs "
-            "(event_type, details, timestamp) "
-            "VALUES (?, ?, ?);";
-
+        const char* sql = "INSERT INTO logs (event_type, details, timestamp) VALUES (?, ?, ?);";
         sqlite3_stmt* stmt = nullptr;
-
-        int rc = sqlite3_prepare_v2(
-            db,
-            sql,
-            -1,
-            &stmt,
-            nullptr
-        );
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 
         if (rc != SQLITE_OK) {
-
-            std::cerr
-                << "Prepare failed: "
-                << sqlite3_errmsg(db)
-                << std::endl;
-
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
             return;
         }
 
-        sqlite3_bind_text(
-            stmt,
-            1,
-            eventType.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_text(
-            stmt,
-            2,
-            details.c_str(),
-            -1,
-            SQLITE_TRANSIENT
-        );
-
-        sqlite3_bind_int64(
-            stmt,
-            3,
-            timestamp
-        );
+        sqlite3_bind_text(stmt, 1, eventType.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, details.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 3, timestamp);
 
         rc = sqlite3_step(stmt);
-
         if (rc != SQLITE_DONE) {
-
-            std::cerr
-                << "Insert failed: "
-                << sqlite3_errmsg(db)
-                << std::endl;
+            std::cerr << "Insert failed: " << sqlite3_errmsg(db) << std::endl;
         }
 
         sqlite3_finalize(stmt);
     }
 
-    ~Database() {
+    // НОВЫЙ МЕТОД: регистрация пользователя
+    void registerUser(const std::string& username) {
+        std::lock_guard<std::mutex> lock(dbMutex);
 
-        if (db) {
+        const char* sql = "INSERT OR IGNORE INTO users (username, created_at) VALUES (?, ?);";
+        sqlite3_stmt* stmt = nullptr;
 
-            sqlite3_close(db);
-            db = nullptr;
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) return;
+
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 2, time(nullptr));
+
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+
+    // НОВЫЙ МЕТОД: получить всех пользователей
+    std::vector<std::string> getAllUsers() {
+        std::lock_guard<std::mutex> lock(dbMutex);
+        std::vector<std::string> users;
+
+        const char* sql = "SELECT username FROM users ORDER BY username;";
+        sqlite3_stmt* stmt = nullptr;
+
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) return users;
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            if (name) {
+                users.push_back(name);
+            }
         }
+
+        sqlite3_finalize(stmt);
+        return users;
     }
 };
 
+// Определение статической переменной
 inline Database* Database::instance = nullptr;
 
-#endif
+#endif // DATABASE_H

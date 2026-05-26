@@ -103,11 +103,9 @@ void MessengerClient::onReadyRead()
 void MessengerClient::parseIncomingData(const QString& line)
 {
     if (line.startsWith("/users")) {
-        // /users aaa bbb ccc
-        QStringList users = line.mid(7).split(' ', Qt::SkipEmptyParts);
-        // Убираем самого себя
-        users.removeAll(username);
-        emit userListReceived(users);
+        QStringList rawUsers = line.mid(7).split(' ', Qt::SkipEmptyParts);
+        rawUsers.removeAll(username + "*");  // ������� ����
+        emit userListReceived(rawUsers); 
     }
     else if (line == "/history_start") {
         // Начало истории

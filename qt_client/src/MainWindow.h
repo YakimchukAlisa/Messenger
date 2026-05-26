@@ -42,7 +42,7 @@ public:
 private slots:
     void onUserSelected(const QModelIndex& index);
     void onSendMessage();
-    void onMessageReceived(const QString& from, const QString& body, time_t timestamp);
+    void onMessageReceived(const QString& from, const QString& body, long timestamp);
     void onUserListReceived(const QStringList& users);
     void onHistoryReceived(const QStringList& historyLines);
     void onConnectionStatus(const QString& status);
