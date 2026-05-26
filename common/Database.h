@@ -409,6 +409,6 @@ public:
     }
 };
 
-Database* Database::instance = nullptr;
+inline Database* Database::instance = nullptr;
 
 #endif
