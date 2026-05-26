@@ -92,6 +92,10 @@ void handleClient(int clientSocket) {
         std::cout << "[DEBUG] Message type: " << msg.type << std::endl;
 
         if (msg.type == "msg") {
+            if (msg.from == msg.to) {
+                send(clientSocket, "/error Cannot send message to yourself\n", 40, 0);
+                continue;  // не сохраняем и не отправляем
+            }
             // Сохраняем в базу данных
             Database::getInstance().saveMessage(msg.from, msg.to, msg.body, msg.timestamp);
             std::cout << "[DB] Saved message from " << msg.from << " to " << msg.to << std::endl;

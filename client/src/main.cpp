@@ -11,86 +11,45 @@ std::string username;
 bool running = true;
 
 void receiveMessages() {
-
     char buffer[4096];
-    std::string pending;
-
     while (running) {
-
         int n = recv(sock, buffer, 4095, 0);
+        if (n <= 0) continue;
+        buffer[n] = '\0';
+        std::string data(buffer);
 
-        if (n <= 0) {
-            running = false;
-            break;
+        // Убираем символ новой строки в конце
+        while (!data.empty() && (data.back() == '\n' || data.back() == '\r')) {
+            data.pop_back();
         }
 
-        buffer[n] = '\0';
-
-        pending += buffer;
-
-        size_t pos;
-
-        while ((pos = pending.find('\n')) != std::string::npos) {
-
-            std::string line = pending.substr(0, pos);
-
-            if (!line.empty() && line.back() == '\r') {
-                line.pop_back();
+        // Обработка разных типов сообщений ПО ПОРЯДКУ
+        if (data.substr(0, 6) == "/users") {
+            std::cout << "\n[Online: " << data.substr(7) << "]\n>> " << std::flush;
+        }
+        else if (data.substr(0, 15) == "/history_start") {
+            std::cout << "\n=== Chat history ===" << std::endl;
+        }
+        else if (data.substr(0, 13) == "/history_end") {
+            std::cout << "=== End of history ===" << std::endl;
+            std::cout << ">> " << std::flush;
+        }
+        else if (!data.empty() && data[0] == '[') {  // Строка истории
+            std::cout << data << std::endl;
+        }
+        else {
+            // Обычное сообщение
+            try {
+                Message msg = Message::deserialize(data);
+                std::cout << "\n[" << msg.from << "]: " << msg.body << "\n>> " << std::flush;
             }
-
-            pending.erase(0, pos + 1);
-
-            std::cout << "[RAW] " << line << std::endl;
-
-            if (line.rfind("/users", 0) == 0) {
-
-                std::cout << "\n[Online: "
-                    << line.substr(7)
-                    << "]\n>> "
-                    << std::flush;
-            }
-            else if (line == "/history_start") {
-
-                std::cout << "\n=== Chat history ==="
-                    << std::endl;
-            }
-            else if (line == "/history_end") {
-
-                std::cout << "=== End of history ==="
-                    << std::endl;
-
-                std::cout << ">> "
-                    << std::flush;
-            }
-            else if (line.rfind("/history_line", 0) == 0) {
-
-                std::cout << line.substr(14)
-                    << std::endl;
-            }
-            else {
-
-                try {
-
-                    Message msg =
-                        Message::deserialize(line);
-
-                    std::cout << "\n["
-                        << msg.from
-                        << "]: "
-                        << msg.body
-                        << "\n>> "
-                        << std::flush;
-                }
-                catch (...) {
-
-                    std::cout << "[UNKNOWN] "
-                        << line
-                        << std::endl;
-                }
+            catch (...) {
+                // Не удалось десериализовать, игнорируем
             }
         }
     }
 }
+
 int main() {
     std::cout << "=== Messenger Client ===\n";
     std::cout << "Username: ";
@@ -132,16 +91,25 @@ int main() {
                 std::string to = input.substr(5, space1 - 5);
                 std::string body = input.substr(space1 + 1);
 
+                if (to == username) {
+                    std::cout << "Cannot send message to yourself" << std::endl;
+                    continue;
+                }
+
                 Message msg;
                 msg.type = "msg";
                 msg.from = username;
                 msg.to = to;
                 msg.body = body;
                 msg.timestamp = time(0);
-
+                 
                 std::string data = msg.serialize();
+                std::cout << "[DEBUG] Sending: " << data << std::endl;
                 send(sock, data.c_str(), data.length(), 0);
                 send(sock, "\n", 1, 0);
+            }
+            else {
+                std::cout << "[DEBUG] Wrong format! Use: /msg username text" << std::endl;
             }
         }
         else if (input.substr(0, 8) == "/history") {
