@@ -23,18 +23,26 @@ void receiveMessages() {
             data.pop_back();
         }
 
-        // Обработка разных типов сообщений ПО ПОРЯДКУ
-        if (data.substr(0, 6) == "/users") {
-            std::cout << "\n[Online: " << data.substr(7) << "]\n>> " << std::flush;
+        // Обработка разных типов сообщений
+        if (data == "/users" || data.substr(0, 6) == "/users") {
+            // /users user1 user2 ...
+            std::string usersPart = (data[0] == '/') ? data.substr(7) : data;
+            std::cout << "\n[Online: " << usersPart << "]\n>> " << std::flush;
         }
-        else if (data.substr(0, 15) == "/history_start") {
+        else if (data == "/history_start") {
             std::cout << "\n=== Chat history ===" << std::endl;
         }
-        else if (data.substr(0, 13) == "/history_end") {
+        else if (data == "/history_end") {
             std::cout << "=== End of history ===" << std::endl;
             std::cout << ">> " << std::flush;
         }
-        else if (!data.empty() && data[0] == '[') {  // Строка истории
+        else if (data.rfind("/history_line", 0) == 0) {
+            // Начинается с "/history_line"
+            std::string line = data.substr(14);
+            std::cout << line << std::endl;
+        }
+        else if (!data.empty() && data[0] == '[') {
+            // Строка истории в старом формате
             std::cout << data << std::endl;
         }
         else {
@@ -44,7 +52,7 @@ void receiveMessages() {
                 std::cout << "\n[" << msg.from << "]: " << msg.body << "\n>> " << std::flush;
             }
             catch (...) {
-                // Не удалось десериализовать, игнорируем
+                std::cout << "\n[Unknown: " << data << "]\n>> " << std::flush;
             }
         }
     }
