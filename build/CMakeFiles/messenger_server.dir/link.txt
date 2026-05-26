@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/messenger_server.dir/server/src/main.cpp.o -o messenger_server 

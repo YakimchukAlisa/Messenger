@@ -1,4 +1,0 @@
-/home/alisa/messenger/build/CMakeFiles/messenger_server.dir
-/home/alisa/messenger/build/CMakeFiles/messenger_client.dir
-/home/alisa/messenger/build/CMakeFiles/edit_cache.dir
-/home/alisa/messenger/build/CMakeFiles/rebuild_cache.dir

@@ -35,6 +35,9 @@ void handleClient(int clientSocket) {
     buffer[n] = '\0';
     std::string username(buffer);
 
+    while (!username.empty() && (username.back() == '\n' || username.back() == '\r')) {
+        username.pop_back();
+    }
     // Регистрация
     {
         std::lock_guard<std::mutex> lock(clientsMutex);

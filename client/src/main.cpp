@@ -77,8 +77,12 @@ int main() {
                 msg.timestamp = time(0);
 
                 std::string data = msg.serialize();
+                std::cout << "[DEBUG] Sending: " << data << std::endl;
                 send(sock, data.c_str(), data.length(), 0);
                 send(sock, "\n", 1, 0);
+            }
+            else {
+                std::cout << "[DEBUG] Wrong format! Use: /msg username text" << std::endl;
             }
         }
         std::cout << ">> " << std::flush;
