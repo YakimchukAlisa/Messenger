@@ -105,6 +105,17 @@ void MainWindow::onUserSelected(const QModelIndex& index)
     currentChatUser = index.data().toString();
     setWindowTitle("Messenger - Chat with " + currentChatUser);
 
+    // СБРАСЫВАЕМ ПОДСВЕТКУ для выбранного пользователя
+    for (int i = 0; i < userList->count(); ++i) {
+        QListWidgetItem* item = userList->item(i);
+        if (item->text() == currentChatUser) {
+            QFont font = item->font();
+            font.setBold(false);
+            item->setFont(font);
+            break;
+        }
+    }
+
     chatDisplay->clear();
 
     // Запрашиваем историю с сервера
@@ -143,11 +154,7 @@ void MainWindow::onMessageReceived(const QString& from, const QString& body, tim
             .arg(body.toHtmlEscaped()));
     }
     else {
-        // Иначе подсвечиваем в списке пользователей
-        statusLabel->setText("New message from " + from);
-        statusLabel->setStyleSheet("color: orange;");
-
-        // Добавляем звёздочку к имени пользователя в списке
+        // Добавляем жирный шрифт к имени пользователя в списке
         for (int i = 0; i < userList->count(); ++i) {
             QListWidgetItem* item = userList->item(i);
             if (item->text() == from) {
