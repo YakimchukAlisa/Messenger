@@ -1,4 +1,4 @@
-#ifndef MAINWINDOW_H
+п»ї#ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
 #include <QMainWindow>
@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <QStringList>
 #include "MessengerClient.h"
+#include <QTimer>  
 
 class MainWindow : public QMainWindow
 {
@@ -24,16 +25,19 @@ private:
     QWidget* centralWidget;
     QSplitter* mainSplitter;
 
-    QListWidget* userList;      // Слева — список пользователей
-    QTextEdit* chatDisplay;     // Справа сверху — окно чата
-    QLineEdit* messageInput;    // Справа снизу — поле ввода
+    QListWidget* userList;      // РЎР»РµРІР° вЂ” СЃРїРёСЃРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
+    QTextEdit* chatDisplay;     // РЎРїСЂР°РІР° СЃРІРµСЂС…Сѓ вЂ” РѕРєРЅРѕ С‡Р°С‚Р°
+    QLineEdit* messageInput;    // РЎРїСЂР°РІР° СЃРЅРёР·Сѓ вЂ” РїРѕР»Рµ РІРІРѕРґР°
     QPushButton* sendButton;
     QLabel* statusLabel;
 
-    QString currentChatUser;    // С кем сейчас открыт чат
-    QStringList currentHistory; // История текущего чата
+    QString currentChatUser;    // РЎ РєРµРј СЃРµР№С‡Р°СЃ РѕС‚РєСЂС‹С‚ С‡Р°С‚
+    QStringList currentHistory; // РСЃС‚РѕСЂРёСЏ С‚РµРєСѓС‰РµРіРѕ С‡Р°С‚Р°
 
     void updateChatDisplay();
+
+    void appendMessage(const QString& sender, const QString& message,
+        const QString& time, bool isMe);
 
 public:
     MainWindow(QWidget* parent = nullptr);

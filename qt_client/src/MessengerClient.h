@@ -38,7 +38,7 @@ signals:
     void disconnectedFromServer();
     void connectionError(const QString& error);
     
-    void messageReceived(const QString& from, const QString& body, time_t timestamp);
+    void messageReceived(const QString& from, const QString& body, long timestamp);
     void userListReceived(const QStringList& users);
     void historyReceived(const QStringList& historyLines);
     void deliveryStatus(const QString& status);

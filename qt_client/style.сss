@@ -1,0 +1,68 @@
+/* style.css - стили для мессенджера */
+
+/* Общий стиль окна */
+QMainWindow {
+    background-color: #36393f;
+}
+
+/* Список пользователей */
+QListWidget {
+    background-color: #2f3136;
+    color: #dcddde;
+    border: none;
+    font-size: 14px;
+    outline: none;
+}
+
+QListWidget::item {
+    padding: 8px;
+    border-radius: 5px;
+}
+
+QListWidget::item:hover {
+    background-color: #40444b;
+}
+
+QListWidget::item:selected {
+    background-color: #4f545c;
+}
+
+/* Поле чата */
+QTextEdit {
+    background-color: #36393f;
+    color: #dcddde;
+    border: none;
+    font-size: 14px;
+}
+
+/* Поле ввода сообщения */
+QLineEdit {
+    background-color: #40444b;
+    color: #dcddde;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 14px;
+}
+
+/* Кнопка отправки */
+QPushButton {
+    background-color: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 14px;
+}
+
+QPushButton:hover {
+    background-color: #4752c4;
+}
+
+/* Статусная строка */
+QLabel {
+    background-color: #2f3136;
+    color: #b9bbbe;
+    padding: 5px;
+    border-radius: 5px;
+}

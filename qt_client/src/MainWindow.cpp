@@ -1,25 +1,97 @@
-#include "MainWindow.h"
+п»ї#include "MainWindow.h"
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QApplication>
 #include <QDateTime>
+#include <QScrollBar>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , client(new MessengerClient(this))
 {
     setWindowTitle("Messenger");
-    resize(800, 600);
+    resize(900, 650);
 
-    // Создаём виджеты
+    // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЃС‚РёР»СЊ РґР»СЏ РІСЃРµРіРѕ РѕРєРЅР°
+    setStyleSheet(R"(
+    QMainWindow {
+        background-color: #f8f9fa;
+    }
+    QListWidget {
+        background-color: #ffffff;
+        color: #4a4a4a;
+        border: none;
+        font-size: 14px;
+        outline: none;
+        border-radius: 10px;
+        margin: 5px;
+    }
+    QListWidget::item {
+        padding: 10px;
+        border-radius: 8px;
+        margin: 2px 5px;
+    }
+    QListWidget::item:hover {
+        background-color: #f0e6ff;
+    }
+    QListWidget::item:selected {
+        background-color: #e8d5ff;
+        color: #6b3fa0;
+    }
+    QTextEdit {
+        background-color: #ffffff;
+        color: #4a4a4a;
+        border: none;
+        font-size: 14px;
+        border-radius: 10px;
+    }
+    QLineEdit {
+        background-color: #ffffff;
+        color: #4a4a4a;
+        border: 1px solid #e0d5f0;
+        border-radius: 10px;
+        padding: 10px;
+        font-size: 14px;
+    }
+    QLineEdit:focus {
+        border: 1px solid #c4a8e8;
+    }
+    QPushButton {
+        background-color: #d4b8f0;
+        color: #5a3a7a;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 20px;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #c4a8e8;
+        color: #4a2a6a;
+    }
+    QLabel {
+        background-color: #f0eaff;
+        color: #6b4a8a;
+        padding: 8px;
+        border-radius: 8px;
+    }
+)");
+
+    // РЎРѕР·РґР°С‘Рј РІРёРґР¶РµС‚С‹
     centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
     userList = new QListWidget(this);
-    userList->setFixedWidth(200);
+    userList->setFixedWidth(240);
 
     chatDisplay = new QTextEdit(this);
     chatDisplay->setReadOnly(true);
+    chatDisplay->setStyleSheet(R"(
+        QTextEdit {
+            background-color: #ffffff;
+            color: #dcddde;
+            border: none;
+        }
+    )");
 
     messageInput = new QLineEdit(this);
     messageInput->setPlaceholderText("Type a message...");
@@ -27,7 +99,8 @@ MainWindow::MainWindow(QWidget* parent)
     sendButton = new QPushButton("Send", this);
 
     statusLabel = new QLabel("Connecting...", this);
-    statusLabel->setFixedHeight(20);
+    statusLabel->setFixedHeight(30);
+    statusLabel->setAlignment(Qt::AlignCenter);
 
     // Layout
     QVBoxLayout* chatLayout = new QVBoxLayout();
@@ -48,10 +121,11 @@ MainWindow::MainWindow(QWidget* parent)
     mainSplitter->setStretchFactor(1, 1);
 
     QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->addWidget(mainSplitter);
     mainLayout->addWidget(statusLabel);
 
-    // Подключаем сигналы
+    // РџРѕРґРєР»СЋС‡Р°РµРј СЃРёРіРЅР°Р»С‹
     connect(userList, &QListWidget::clicked, this, &MainWindow::onUserSelected);
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendMessage);
     connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendMessage);
@@ -63,7 +137,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(client, &MessengerClient::connectedToServer, this, &MainWindow::onConnected);
     connect(client, &MessengerClient::disconnectedFromServer, this, &MainWindow::onDisconnected);
 
-    // Запрашиваем сервер и имя
+    // Р—Р°РїСЂР°С€РёРІР°РµРј СЃРµСЂРІРµСЂ Рё РёРјСЏ
     bool ok;
     QString serverIP = QInputDialog::getText(this, "Connect", "Server IP:", QLineEdit::Normal, "127.0.0.1", &ok);
     if (!ok) {
@@ -84,20 +158,20 @@ MainWindow::~MainWindow() {}
 
 void MainWindow::onConnected()
 {
-    statusLabel->setText("Connected as " + client->getUsername());
-    statusLabel->setStyleSheet("color: green;");
+    statusLabel->setText("вњ“ Connected as " + client->getUsername());
+    statusLabel->setStyleSheet("background-color: #f8f9fa; color: #03965e;");
 }
 
 void MainWindow::onDisconnected()
 {
-    statusLabel->setText("Disconnected");
-    statusLabel->setStyleSheet("color: red;");
+    statusLabel->setText("вњ— Disconnected");
+    statusLabel->setStyleSheet("background-color: #f8f9fa; color: #ed4245;");
 }
 
 void MainWindow::onConnectionStatus(const QString& status)
 {
-    statusLabel->setText(status);
-    statusLabel->setStyleSheet("color: orange;");
+    statusLabel->setText("вљ  " + status);
+    statusLabel->setStyleSheet("background-color: #f8f9fa; color: #ab6d03;");
 }
 
 void MainWindow::onUserSelected(const QModelIndex& index)
@@ -105,7 +179,7 @@ void MainWindow::onUserSelected(const QModelIndex& index)
     currentChatUser = index.data().toString();
     setWindowTitle("Messenger - Chat with " + currentChatUser);
 
-    // СБРАСЫВАЕМ ПОДСВЕТКУ для выбранного пользователя
+    // РЎР±СЂР°СЃС‹РІР°РµРј РїРѕРґСЃРІРµС‚РєСѓ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     for (int i = 0; i < userList->count(); ++i) {
         QListWidgetItem* item = userList->item(i);
         if (item->text() == currentChatUser) {
@@ -118,7 +192,7 @@ void MainWindow::onUserSelected(const QModelIndex& index)
 
     chatDisplay->clear();
 
-    // Запрашиваем историю с сервера
+    // Р—Р°РїСЂР°С€РёРІР°РµРј РёСЃС‚РѕСЂРёСЋ СЃ СЃРµСЂРІРµСЂР°
     client->requestHistory(currentChatUser, 50);
 }
 
@@ -127,57 +201,92 @@ void MainWindow::onSendMessage()
     QString text = messageInput->text().trimmed();
     if (text.isEmpty()) return;
     if (currentChatUser.isEmpty()) {
-        statusLabel->setText("Select a user first!");
+        statusLabel->setText("вљ  Select a user first!");
         return;
     }
 
     client->sendMessage(currentChatUser, text);
     messageInput->clear();
 
-    // Отображаем своё сообщение сразу
+    // РћС‚РѕР±СЂР°Р¶Р°РµРј СЃРІРѕС‘ СЃРѕРѕР±С‰РµРЅРёРµ РІ С†РІРµС‚РЅРѕРј РїСѓР·С‹СЂРµ
     QDateTime now = QDateTime::currentDateTime();
-    chatDisplay->append(QString("<b><font color='blue'>[%1] Me:</font></b> %2")
-        .arg(now.toString("hh:mm:ss"))
-        .arg(text.toHtmlEscaped()));
+    appendMessage("Me", text, now.toString("hh:mm:ss"), true);
+
+    // РџСЂРѕРєСЂСѓС‡РёРІР°РµРј РІРЅРёР·
+    QScrollBar* scrollBar = chatDisplay->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 }
 
-void MainWindow::onUserListReceived(const QStringList& users)
+void MainWindow::appendMessage(const QString& sender, const QString& message,
+    const QString& time, bool isMe)
 {
-    userList->clear();
+    QString html;
 
-    for (const QString& user : users) {
-        QListWidgetItem* item = new QListWidgetItem(user);
-
-        if (user.endsWith("*")) {
-            // Онлайн — зелёный
-            item->setForeground(Qt::darkGreen);
-            item->setText(user.left(user.length() - 1));
-        }
-        else {
-            // Офлайн — серый
-            item->setForeground(Qt::gray);
-        }
-
-        userList->addItem(item);
+    if (isMe) {
+        // РњРѕС‘ СЃРѕРѕР±С‰РµРЅРёРµ вЂ” РЅРµР¶РЅС‹Р№ С„РёРѕР»РµС‚РѕРІС‹Р№
+        html = QString(R"(
+<table width="100%">
+<tr>
+    <td align="right">
+        <table cellpadding="8">
+        <tr>
+            <td bgcolor="#d4b8f0"
+                style="color:#4a3a6a;
+                       border-radius:12px;">
+                <small>You В· %1</small><br>
+                %2
+            </td>
+        </tr>
+        </table>
+    </td>
+</tr>
+</table>
+)")
+.arg(time, message.toHtmlEscaped());
     }
+    else {
+        // РЎРѕРѕР±С‰РµРЅРёРµ СЃРѕР±РµСЃРµРґРЅРёРєР° вЂ” РЅРµР¶РЅРѕ-СЃРµСЂС‹Р№
+        html = QString(R"(
+<table width="100%">
+<tr>
+    <td align="left">
+        <table cellpadding="8">
+        <tr>
+            <td bgcolor="#f0f0f0"
+                style="color:#6a6a7a;
+                       border-radius:12px;">
+                <small>%1 В· %2</small><br>
+                %3
+            </td>
+        </tr>
+        </table>
+    </td>
+</tr>
+</table>
+)")
+.arg(sender.toHtmlEscaped(), time, message.toHtmlEscaped());
+    }
+
+    chatDisplay->append(html);
 }
 
 void MainWindow::onMessageReceived(const QString& from, const QString& body, long timestamp)
 {
     char timeStr[64];
     time_t ts = (time_t)timestamp;
-    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", localtime(&ts));
+    struct tm* timeInfo = localtime(&ts);
+    strftime(timeStr, sizeof(timeStr), "%H:%M:%S", timeInfo);
 
-    // Если чат открыт с этим пользователем — показываем сразу
+    // Р•СЃР»Рё С‡Р°С‚ РѕС‚РєСЂС‹С‚ СЃ СЌС‚РёРј РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј вЂ” РїРѕРєР°Р·С‹РІР°РµРј СЃСЂР°Р·Сѓ
     if (from == currentChatUser) {
-        chatDisplay->append(QString("<b><font color='green'>[%1] %2:</font></b> %3")
-            .arg(timeStr)
-            .arg(from.toHtmlEscaped())
-            .arg(body.toHtmlEscaped()));
+        appendMessage(from, body, QString(timeStr), false);
+
+        // РџСЂРѕРєСЂСѓС‡РёРІР°РµРј РІРЅРёР·
+        QScrollBar* scrollBar = chatDisplay->verticalScrollBar();
+        scrollBar->setValue(scrollBar->maximum());
     }
     else {
-
-        // Добавляем жирный шрифт к имени пользователя в списке
+        // РџРѕРґСЃРІРµС‡РёРІР°РµРј РІ СЃРїРёСЃРєРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
         for (int i = 0; i < userList->count(); ++i) {
             QListWidgetItem* item = userList->item(i);
             if (item->text() == from) {
@@ -187,17 +296,66 @@ void MainWindow::onMessageReceived(const QString& from, const QString& body, lon
                 break;
             }
         }
+
+        // РЎР±СЂР°СЃС‹РІР°РµРј С†РІРµС‚ СЃС‚Р°С‚СѓСЃР° С‡РµСЂРµР· 3 СЃРµРєСѓРЅРґС‹
+        QTimer::singleShot(3000, this, [this]() {
+            if (client->isConnected()) {
+                statusLabel->setText("вњ“ Connected as " + client->getUsername());
+                statusLabel->setStyleSheet("background-color: #2f3136; color: #57f287;");
+            }
+            });
+    }
+}
+
+void MainWindow::onUserListReceived(const QStringList& users)
+{
+    userList->clear();
+
+    for (QString user : users) {
+
+        bool online = false;
+
+        if (user.endsWith("*")) {
+            online = true;
+            user.chop(1); 
+        }
+
+        // РќРµ РїРѕРєР°Р·С‹РІР°РµРј СЃРµР±СЏ
+        if (user == client->getUsername())
+            continue;
+
+        QListWidgetItem* item = new QListWidgetItem(user);
+
+        if (online)
+            item->setForeground(QColor("#03965e"));
+        else
+            item->setForeground(QColor("#888888"));
+
+        userList->addItem(item);
     }
 }
 
 void MainWindow::onHistoryReceived(const QStringList& historyLines)
 {
     for (const QString& line : historyLines) {
-        chatDisplay->append(line);
+        // РџР°СЂСЃРёРј СЃС‚СЂРѕРєСѓ РёСЃС‚РѕСЂРёРё РІРёРґР°: "[HH:MM:SS] РёРјСЏ: СЃРѕРѕР±С‰РµРЅРёРµ"
+        QString time = line.mid(1, 8);  // "HH:MM:SS"
+        int colonPos = line.indexOf(": ", 11);
+        if (colonPos != -1) {
+            QString sender = line.mid(11, colonPos - 11);
+            QString message = line.mid(colonPos + 2);
+
+            bool isMe = (sender == client->getUsername());
+            appendMessage(sender, message, time, isMe);
+        }
+        else {
+            // Р•СЃР»Рё С„РѕСЂРјР°С‚ РЅРµ СЃРѕРІРїР°РґР°РµС‚, РІС‹РІРѕРґРёРј РєР°Рє РµСЃС‚СЊ
+            chatDisplay->append(line);
+        }
     }
+
+    // РџСЂРѕРєСЂСѓС‡РёРІР°РµРј РІРЅРёР· РїРѕСЃР»Рµ Р·Р°РіСЂСѓР·РєРё РёСЃС‚РѕСЂРёРё
+    QScrollBar* scrollBar = chatDisplay->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 }
 
-void MainWindow::updateChatDisplay()
-{
-    // Не используется, история приходит через сигнал
-}
