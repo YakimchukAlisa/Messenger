@@ -14,7 +14,7 @@ MessengerClient::MessengerClient(QObject* parent)
 
 MessengerClient::~MessengerClient()
 {
-    if (connected) disconnect();
+    if (connected) disconnectFromHost();
 }
 
 void MessengerClient::connectToServer(const QString& host, int port, const QString& user)
@@ -23,12 +23,20 @@ void MessengerClient::connectToServer(const QString& host, int port, const QStri
     socket->connectToHost(host, port);
 }
 
-void MessengerClient::disconnect()
+void MessengerClient::disconnectFromHost()
 {
     if (socket->state() == QAbstractSocket::ConnectedState) {
         socket->disconnectFromHost();
     }
     connected = false;
+}
+
+void MessengerClient::login(const QString& username, const QString& password)
+{
+    this->username = username;
+    std::string loginData = username.toStdString() + "|" + password.toStdString() + "\n";
+    socket->write(loginData.c_str());
+    socket->flush();
 }
 
 void MessengerClient::sendMessage(const QString& to, const QString& body)
@@ -37,14 +45,14 @@ void MessengerClient::sendMessage(const QString& to, const QString& body)
         emit connectionError("Not connected to server");
         return;
     }
-    
+
     Message msg;
     msg.type = "msg";
     msg.from = username.toStdString();
     msg.to = to.toStdString();
     msg.body = body.toStdString();
     msg.timestamp = time(nullptr);
-    
+
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
     socket->flush();
@@ -53,14 +61,14 @@ void MessengerClient::sendMessage(const QString& to, const QString& body)
 void MessengerClient::requestHistory(const QString& withUser, int limit)
 {
     if (!connected) return;
-    
+
     Message msg;
     msg.type = "history";
     msg.from = username.toStdString();
     msg.to = withUser.toStdString();
     msg.body = std::to_string(limit);
     msg.timestamp = time(nullptr);
-    
+
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
     socket->flush();
@@ -69,12 +77,6 @@ void MessengerClient::requestHistory(const QString& withUser, int limit)
 void MessengerClient::onConnected()
 {
     connected = true;
-    
-    // Отправляем имя пользователя
-    std::string login = username.toStdString() + "\n";
-    socket->write(login.c_str());
-    socket->flush();
-    
     emit connectedToServer();
 }
 
@@ -87,15 +89,14 @@ void MessengerClient::onDisconnected()
 void MessengerClient::onReadyRead()
 {
     pendingData += QString::fromUtf8(socket->readAll());
-    
+
     while (pendingData.contains('\n')) {
         int newlinePos = pendingData.indexOf('\n');
         QString line = pendingData.left(newlinePos);
         pendingData = pendingData.mid(newlinePos + 1);
-        
-        // Убираем \r
+
         if (line.endsWith('\r')) line.chop(1);
-        
+
         parseIncomingData(line);
     }
 }
@@ -104,18 +105,13 @@ void MessengerClient::parseIncomingData(const QString& line)
 {
     if (line.startsWith("/users")) {
         QStringList rawUsers = line.mid(7).split(' ', Qt::SkipEmptyParts);
-        rawUsers.removeAll(username + "*");  // ������� ����
-        emit userListReceived(rawUsers); 
-    }
-    else if (line == "/history_start") {
-        // Начало истории
-    }
-    else if (line == "/history_end") {
-        // Конец истории — сигнал уже отправлен
+        rawUsers.removeAll(username);
+        rawUsers.removeAll(username + "*");
+        emit userListReceived(rawUsers);
     }
     else if (line.startsWith("/history_line ")) {
         QString historyLine = line.mid(14);
-        emit historyReceived({historyLine});
+        emit historyReceived({ historyLine });
     }
     else if (line.startsWith("/error")) {
         emit deliveryStatus("Error: " + line.mid(7));
@@ -123,8 +119,11 @@ void MessengerClient::parseIncomingData(const QString& line)
     else if (line.startsWith("/delivered")) {
         emit deliveryStatus("Message delivered");
     }
+    else if (line.startsWith("/welcome")) {
+        // �������� �����
+        emit deliveryStatus("Login successful");
+    }
     else {
-        // Обычное сообщение
         try {
             Message msg = Message::deserialize(line.toStdString());
             emit messageReceived(
@@ -132,7 +131,8 @@ void MessengerClient::parseIncomingData(const QString& line)
                 QString::fromStdString(msg.body),
                 msg.timestamp
             );
-        } catch (...) {
+        }
+        catch (...) {
             qDebug() << "Unknown message:" << line;
         }
     }
@@ -141,5 +141,5 @@ void MessengerClient::parseIncomingData(const QString& line)
 void MessengerClient::onError(QAbstractSocket::SocketError error)
 {
     Q_UNUSED(error)
-    emit connectionError(socket->errorString());
+        emit connectionError(socket->errorString());
 }

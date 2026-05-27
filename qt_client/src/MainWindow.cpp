@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QScrollBar>
+#include "LoginDialog.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -136,22 +137,26 @@ MainWindow::MainWindow(QWidget* parent)
     connect(client, &MessengerClient::connectionError, this, &MainWindow::onConnectionStatus);
     connect(client, &MessengerClient::connectedToServer, this, &MainWindow::onConnected);
     connect(client, &MessengerClient::disconnectedFromServer, this, &MainWindow::onDisconnected);
+    LoginDialog loginDialog(this);
 
-    // Запрашиваем сервер и имя
-    bool ok;
-    QString serverIP = QInputDialog::getText(this, "Connect", "Server IP:", QLineEdit::Normal, "127.0.0.1", &ok);
-    if (!ok) {
+    if (loginDialog.exec() != QDialog::Accepted) {
         QApplication::quit();
         return;
     }
 
-    QString username = QInputDialog::getText(this, "Connect", "Username:", QLineEdit::Normal, "", &ok);
-    if (!ok || username.isEmpty()) {
-        QApplication::quit();
-        return;
-    }
+    QString serverIP = loginDialog.getServerIp();
+    QString username = loginDialog.getUsername();
+    QString password = loginDialog.getPassword();
 
+
+    connect(client, &MessengerClient::connectedToServer, this, [this, username, password]() {
+        client->login(username, password);
+        });
+
+
+    // Устанавливаем соединение
     client->connectToServer(serverIP, 7777, username);
+
 }
 
 MainWindow::~MainWindow() {}
@@ -201,7 +206,6 @@ void MainWindow::onSendMessage()
     QString text = messageInput->text().trimmed();
     if (text.isEmpty()) return;
     if (currentChatUser.isEmpty()) {
-        statusLabel->setText("⚠ Select a user first!");
         return;
     }
 
@@ -296,14 +300,6 @@ void MainWindow::onMessageReceived(const QString& from, const QString& body, lon
                 break;
             }
         }
-
-        // Сбрасываем цвет статуса через 3 секунды
-        QTimer::singleShot(3000, this, [this]() {
-            if (client->isConnected()) {
-                statusLabel->setText("✓ Connected as " + client->getUsername());
-                statusLabel->setStyleSheet("background-color: #2f3136; color: #57f287;");
-            }
-            });
     }
 }
 

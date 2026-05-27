@@ -11,6 +11,7 @@
 #include "../../common/Protocol.h"
 #include "../../common/Logger.h"
 #include "../../common/Database.h"
+#include "../../common/PasswordHash.h"
 
 #define PORT 7777
 
@@ -50,18 +51,53 @@ void broadcastUserList() {
 void handleClient(int clientSocket) {
     char buffer[4096];
 
-    // Получаем имя пользователя
+    // Получаем сообщение с логином/паролем
     int n = recv(clientSocket, buffer, 4095, 0);
     if (n <= 0) return;
     buffer[n] = '\0';
-    std::string username(buffer);
 
+    // Ожидаем формат: "username|password"
+    std::string data(buffer);
+    size_t sep = data.find('|');
+    if (sep == std::string::npos) {
+        send(clientSocket, "/error Invalid login format\n", 28, 0);
+        close(clientSocket);
+        return;
+    }
+
+    std::string username = data.substr(0, sep);
+    std::string password = data.substr(sep + 1);
+
+    // Убираем \n
     while (!username.empty() && (username.back() == '\n' || username.back() == '\r')) {
         username.pop_back();
     }
-    Database::getInstance().registerUser(username);
+    while (!password.empty() && (password.back() == '\n' || password.back() == '\r')) {
+        password.pop_back();
+    }
 
-    std::cout << "[DEBUG] User registered: " << username << std::endl;
+    std::string passwordHash = simpleHash(password);
+
+    // Проверяем, существует ли пользователь
+    if (Database::getInstance().userExists(username)) {
+        // Логин
+        if (!Database::getInstance().loginUser(username, passwordHash)) {
+            send(clientSocket, "/error Invalid password\n", 24, 0);
+            close(clientSocket);
+            return;
+        }
+
+        Logger::getInstance().log("USER_LOGIN: " + username);
+    }
+    else {
+        // Регистрация
+        if (!Database::getInstance().registerUser(username, passwordHash)) {
+            send(clientSocket, "/error Registration failed\n", 28, 0);
+            close(clientSocket);
+            return;
+        }
+        Logger::getInstance().log("USER_REGISTER: " + username);
+    }
 
     // Регистрация
     {
@@ -70,7 +106,7 @@ void handleClient(int clientSocket) {
         userToSocket[username] = clientSocket;
     }
 
-    Logger::getInstance().log("USER_LOGIN: " + username);
+    send(clientSocket, "/welcome Login successful\n", 26, 0);
     broadcastUserList();
 
     // Обработка сообщений

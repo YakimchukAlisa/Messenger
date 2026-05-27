@@ -12,6 +12,7 @@ set(SOURCES
     src/main.cpp
     src/MainWindow.cpp
     src/MessengerClient.cpp
+    src/LoginDialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/Database.h
 )
 

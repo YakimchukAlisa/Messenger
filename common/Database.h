@@ -39,32 +39,33 @@ private:
 
     void createTables() {
         const char* sqlMessages = R"(
-            CREATE TABLE IF NOT EXISTS private_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                from_user TEXT NOT NULL,
-                to_user TEXT NOT NULL,
-                message TEXT NOT NULL,
-                timestamp INTEGER NOT NULL,
-                delivered INTEGER DEFAULT 0
-            );
-        )";
+        CREATE TABLE IF NOT EXISTS private_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_user TEXT NOT NULL,
+            to_user TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            delivered INTEGER DEFAULT 0
+        );
+    )";
 
         const char* sqlLogs = R"(
-            CREATE TABLE IF NOT EXISTS logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_type TEXT NOT NULL,
-                details TEXT,
-                timestamp INTEGER NOT NULL
-            );
-        )";
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            details TEXT,
+            timestamp INTEGER NOT NULL
+        );
+    )";
 
         const char* sqlUsers = R"(
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                created_at INTEGER NOT NULL
-            );
-        )";
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        );
+    )";
 
         char* errMsg = nullptr;
 
@@ -89,6 +90,7 @@ private:
         }
     }
 
+    
 public:
     static Database& getInstance() {
         if (!instance) {
@@ -215,47 +217,98 @@ public:
         sqlite3_finalize(stmt);
     }
 
-    // НОВЫЙ МЕТОД: регистрация пользователя
-    void registerUser(const std::string& username) {
+    // Регистрация нового пользователя с паролем
+    bool registerUser(const std::string& username, const std::string& passwordHash) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
-        const char* sql = "INSERT OR IGNORE INTO users (username, created_at) VALUES (?, ?);";
+        const char* sql = "INSERT INTO users (username, password_hash) VALUES (?, ?)";
         sqlite3_stmt* stmt = nullptr;
 
         int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
-        if (rc != SQLITE_OK) return;
+        if (rc != SQLITE_OK) {
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
 
         sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 2, time(nullptr));
+        sqlite3_bind_text(stmt, 2, passwordHash.c_str(), -1, SQLITE_TRANSIENT);
 
-        sqlite3_step(stmt);
+        rc = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
+
+        if (rc != SQLITE_DONE) {
+            std::cerr << "Register failed: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+
+        return true;
     }
 
-    // НОВЫЙ МЕТОД: получить всех пользователей
+    // Проверка логина
+    bool loginUser(const std::string& username, const std::string& passwordHash) {
+        std::lock_guard<std::mutex> lock(dbMutex);
+
+        const char* sql = "SELECT password_hash FROM users WHERE username = ?";
+        sqlite3_stmt* stmt = nullptr;
+
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) {
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
+            return false;
+        }
+
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+
+        rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW) {
+            const char* storedHash = (const char*)sqlite3_column_text(stmt, 0);
+            bool valid = (passwordHash == storedHash);
+            sqlite3_finalize(stmt);
+            return valid;
+        }
+
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    // Проверка, существует ли пользователь
+    bool userExists(const std::string& username) {
+        std::lock_guard<std::mutex> lock(dbMutex);
+
+        const char* sql = "SELECT 1 FROM users WHERE username = ?";
+        sqlite3_stmt* stmt = nullptr;
+
+        int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+        if (rc != SQLITE_OK) return false;
+
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
+
+        rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+
+        return rc == SQLITE_ROW;
+    }
+
+    // Получить всех пользователей из БД
     std::vector<std::string> getAllUsers() {
         std::lock_guard<std::mutex> lock(dbMutex);
         std::vector<std::string> users;
 
-        const char* sql = "SELECT username FROM users ORDER BY username;";
+        const char* sql = "SELECT username FROM users";
         sqlite3_stmt* stmt = nullptr;
 
         int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
         if (rc != SQLITE_OK) return users;
 
         while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-            if (name) {
-                users.push_back(name);
-            }
+            const char* name = (const char*)sqlite3_column_text(stmt, 0);
+            if (name) users.push_back(name);
         }
 
         sqlite3_finalize(stmt);
         return users;
     }
 };
-
-// Определение статической переменной
 inline Database* Database::instance = nullptr;
 
-#endif // DATABASE_H
+#endif 
