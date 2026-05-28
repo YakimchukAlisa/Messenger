@@ -1,4 +1,5 @@
-#include "LoginDialog.h"
+﻿#include "LoginDialog.h"
+#include <QTimer>
 
 LoginDialog::LoginDialog(QWidget* parent)
     : QDialog(parent)
@@ -8,47 +9,79 @@ LoginDialog::LoginDialog(QWidget* parent)
 
     setStyleSheet(R"(
         QDialog {
-            background-color: #36393f;
+            background-color: #f8f9fa;
         }
         QLabel {
-            color: #dcddde;
+            color: #6b4a8a;
             font-size: 13px;
+            font-weight: 500;
         }
         QLineEdit {
-            background-color: #40444b;
-            color: #dcddde;
-            border: none;
-            border-radius: 6px;
+            background-color: #ffffff;
+            color: #4a4a4a;
+            border: 1px solid #e0d5f0;
+            border-radius: 10px;
             padding: 10px;
             font-size: 14px;
         }
+        QLineEdit:focus {
+            border: 1px solid #c4a8e8;
+            outline: none;
+        }
         QPushButton {
-            background-color: #5865f2;
-            color: white;
+            background-color: #d4b8f0;
+            color: #5a3a7a;
             border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
+            border-radius: 10px;
+            padding: 10px 20px;
             font-size: 14px;
+            font-weight: bold;
         }
         QPushButton:hover {
-            background-color: #4752c4;
+            background-color: #c4a8e8;
+            color: #4a2a6a;
         }
         QPushButton#cancelButton {
-            background-color: #4f545c;
+            background-color: #e8e0f0;
+            color: #6b4a8a;
         }
         QPushButton#cancelButton:hover {
-            background-color: #5d626b;
+            background-color: #ddd0f0;
+            color: #5a3a7a;
+        }
+        QLabel#titleLabel {
+            font-size: 24px;
+            font-weight: bold;
+            color: #6b3fa0;
+            margin-bottom: 20px;
+        }
+        QLabel#statusLabel {
+            color: #d32f2f;
+            font-size: 12px;
+            background-color: #ffebee;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ffcdd2;
         }
     )");
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(15);
+    mainLayout->setContentsMargins(40, 40, 40, 40);
 
-    QLabel* titleLabel = new QLabel("Welcome to Messenger");
-    titleLabel->setStyleSheet("font-size: 20px; font-weight: bold; color: #ffffff; margin-bottom: 10px;");
+    // Заголовок
+    QLabel* titleLabel = new QLabel("Messenger");
+    titleLabel->setObjectName("titleLabel");
     titleLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(titleLabel);
 
+    // Подзаголовок
+    QLabel* subtitleLabel = new QLabel("Welcome back! Please login or register");
+    subtitleLabel->setStyleSheet("color: #8e6eb0; font-size: 12px; margin-bottom: 20px;");
+    subtitleLabel->setAlignment(Qt::AlignCenter);
+    mainLayout->addWidget(subtitleLabel);
+
+    // Сервер
     QLabel* serverLabel = new QLabel("Server IP:");
     serverIpEdit = new QLineEdit();
     serverIpEdit->setPlaceholderText("127.0.0.1");
@@ -56,12 +89,14 @@ LoginDialog::LoginDialog(QWidget* parent)
     mainLayout->addWidget(serverLabel);
     mainLayout->addWidget(serverIpEdit);
 
+    // Логин
     QLabel* usernameLabel = new QLabel("Username:");
     usernameEdit = new QLineEdit();
     usernameEdit->setPlaceholderText("Enter your username");
     mainLayout->addWidget(usernameLabel);
     mainLayout->addWidget(usernameEdit);
 
+    // Пароль
     QLabel* passwordLabel = new QLabel("Password:");
     passwordEdit = new QLineEdit();
     passwordEdit->setPlaceholderText("Enter your password");
@@ -69,17 +104,26 @@ LoginDialog::LoginDialog(QWidget* parent)
     mainLayout->addWidget(passwordLabel);
     mainLayout->addWidget(passwordEdit);
 
+    // Статус ошибки
     statusLabel = new QLabel();
-    statusLabel->setStyleSheet("color: #ed4245; font-size: 12px;");
+    statusLabel->setObjectName("statusLabel");
     statusLabel->setVisible(false);
+    statusLabel->setWordWrap(true);
     mainLayout->addWidget(statusLabel);
 
+    // Кнопки
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
 
     cancelButton = new QPushButton("Cancel");
     cancelButton->setObjectName("cancelButton");
-    loginButton = new QPushButton("Login");
+    loginButton = new QPushButton("Login / Register");
+
+    // ОТКЛЮЧАЕМ АВТОМАТИЧЕСКОЕ ПОВЕДЕНИЕ ENTER
+    loginButton->setDefault(false);
+    loginButton->setAutoDefault(false);
+    cancelButton->setDefault(false);
+    cancelButton->setAutoDefault(false);
 
     buttonLayout->addWidget(cancelButton);
     buttonLayout->addWidget(loginButton);
@@ -87,29 +131,41 @@ LoginDialog::LoginDialog(QWidget* parent)
 
     mainLayout->addLayout(buttonLayout);
 
+
+    // Сигналы
     connect(loginButton, &QPushButton::clicked, this, &LoginDialog::onLoginClicked);
     connect(cancelButton, &QPushButton::clicked, this, &LoginDialog::onCancelClicked);
-    connect(usernameEdit, &QLineEdit::returnPressed, this, &LoginDialog::onLoginClicked);
-    connect(passwordEdit, &QLineEdit::returnPressed, this, &LoginDialog::onLoginClicked);
+
+    // Enter через QTimer, чтобы не закрывало окно до проверки
+    connect(usernameEdit, &QLineEdit::returnPressed, this, [this]() {
+        QTimer::singleShot(0, this, &LoginDialog::onLoginClicked);
+        });
+    connect(passwordEdit, &QLineEdit::returnPressed, this, [this]() {
+        QTimer::singleShot(0, this, &LoginDialog::onLoginClicked);
+        });
 
     usernameEdit->setFocus();
 }
 
 void LoginDialog::onLoginClicked()
 {
-    if (usernameEdit->text().trimmed().isEmpty()) {
+    QString username = usernameEdit->text().trimmed();
+    QString password = passwordEdit->text();
+
+    if (username.isEmpty()) {
         showError("Username cannot be empty");
         usernameEdit->setFocus();
         return;
     }
 
-    if (passwordEdit->text().isEmpty()) {
+    if (password.isEmpty()) {
         showError("Password cannot be empty");
         passwordEdit->setFocus();
         return;
     }
 
-    clearError();
+
+    // Все проверки пройдены
     accept();
 }
 
@@ -136,10 +192,19 @@ QString LoginDialog::getPassword() const
 void LoginDialog::showError(const QString& message)
 {
     statusLabel->setText(message);
-    statusLabel->setVisible(true);
+    statusLabel->show();
+    statusLabel->raise();
+    statusLabel->update();
+
+    // Автоматически скрыть через 3 секунды
+    QTimer::singleShot(3000, this, [this]() {
+        if (statusLabel) {
+            statusLabel->hide();
+        }
+        });
 }
 
 void LoginDialog::clearError()
 {
-    statusLabel->setVisible(false);
+    statusLabel->hide();
 }
