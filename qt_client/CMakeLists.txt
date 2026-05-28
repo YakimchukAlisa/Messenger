@@ -19,6 +19,7 @@ set(SOURCES
 set(HEADERS
     src/MainWindow.h
     src/MessengerClient.h
+    src/IdGenerator.h
 )
 
 # Ресурсы (CSS файл) — опционально, пока закомментируем

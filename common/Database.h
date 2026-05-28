@@ -41,9 +41,14 @@ private:
         const char* sqlMessages = R"(
         CREATE TABLE IF NOT EXISTS private_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT UNIQUE NOT NULL,
             from_user TEXT NOT NULL,
             to_user TEXT NOT NULL,
             message TEXT NOT NULL,
+            reply_to TEXT,
+            is_forwarded INTEGER DEFAULT 0,
+            original_from TEXT,
+            original_body TEXT,
             timestamp INTEGER NOT NULL,
             delivered INTEGER DEFAULT 0
         );
@@ -90,7 +95,6 @@ private:
         }
     }
 
-    
 public:
     static Database& getInstance() {
         if (!instance) {
@@ -100,17 +104,24 @@ public:
     }
 
     void saveMessage(
+        const std::string& messageId,
         const std::string& from,
         const std::string& to,
         const std::string& message,
+        const std::string& replyTo,
+        bool isForwarded,
+        const std::string& originalFrom,
+        const std::string& originalBody,
         time_t timestamp
     ) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
-        const char* sql =
-            "INSERT INTO private_messages "
-            "(from_user, to_user, message, timestamp, delivered) "
-            "VALUES (?, ?, ?, ?, 0);";
+        const char* sql = R"(
+            INSERT INTO private_messages 
+            (message_id, from_user, to_user, message, reply_to, 
+             is_forwarded, original_from, original_body, timestamp, delivered)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        )";
 
         sqlite3_stmt* stmt = nullptr;
         int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
@@ -120,10 +131,15 @@ public:
             return;
         }
 
-        sqlite3_bind_text(stmt, 1, from.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, to.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, message.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 4, timestamp);
+        sqlite3_bind_text(stmt, 1, messageId.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, from.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, to.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, message.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 5, replyTo.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 6, isForwarded ? 1 : 0);
+        sqlite3_bind_text(stmt, 7, originalFrom.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 8, originalBody.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 9, timestamp);
 
         rc = sqlite3_step(stmt);
         if (rc != SQLITE_DONE) {
@@ -142,7 +158,8 @@ public:
         std::vector<std::string> history;
 
         const char* sql = R"(
-            SELECT from_user, message, timestamp
+            SELECT from_user, message, timestamp, message_id, reply_to, 
+                   is_forwarded, original_from, original_body
             FROM private_messages
             WHERE
                 (from_user = ? AND to_user = ?)
@@ -170,6 +187,11 @@ public:
             const char* fromText = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
             const char* msgText = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
             time_t ts = sqlite3_column_int64(stmt, 2);
+            const char* msgId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            const char* replyTo = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+            int isForwarded = sqlite3_column_int(stmt, 5);
+            const char* origFrom = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+            const char* origBody = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
 
             std::string from = fromText ? fromText : "";
             std::string msg = msgText ? msgText : "";
@@ -180,6 +202,13 @@ public:
             strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeInfo);
 
             std::string line = "[" + std::string(timeStr) + "] " + from + ": " + msg;
+
+            // Добавляем метаданные через специальный разделитель
+            if (msgId && replyTo) {
+                line += "|||" + std::string(msgId) + "|||" + std::string(replyTo);
+                line += "|||" + std::to_string(isForwarded) + "|||" + (origFrom ? origFrom : "") + "|||" + (origBody ? origBody : "");
+            }
+
             history.push_back(line);
         }
 
@@ -217,7 +246,6 @@ public:
         sqlite3_finalize(stmt);
     }
 
-    // Регистрация нового пользователя с паролем
     bool registerUser(const std::string& username, const std::string& passwordHash) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -244,7 +272,6 @@ public:
         return true;
     }
 
-    // Проверка логина
     bool loginUser(const std::string& username, const std::string& passwordHash) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -271,7 +298,6 @@ public:
         return false;
     }
 
-    // Проверка, существует ли пользователь
     bool userExists(const std::string& username) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -289,7 +315,6 @@ public:
         return rc == SQLITE_ROW;
     }
 
-    // Получить всех пользователей из БД
     std::vector<std::string> getAllUsers() {
         std::lock_guard<std::mutex> lock(dbMutex);
         std::vector<std::string> users;
@@ -309,6 +334,7 @@ public:
         return users;
     }
 };
+
 inline Database* Database::instance = nullptr;
 
-#endif 
+#endif

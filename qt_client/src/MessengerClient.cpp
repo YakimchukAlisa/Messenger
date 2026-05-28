@@ -1,4 +1,5 @@
 #include "MessengerClient.h"
+#include "../../common/IdGenerator.h"
 #include <QDebug>
 
 MessengerClient::MessengerClient(QObject* parent)
@@ -35,7 +36,6 @@ void MessengerClient::login(const QString& username, const QString& password)
 {
     this->username = username;
 
-    // Отправляем JSON сообщение для аутентификации
     Message authMsg;
     authMsg.type = "auth";
     authMsg.from = username.toStdString();
@@ -61,12 +61,61 @@ void MessengerClient::sendMessage(const QString& to, const QString& body)
     msg.to = to.toStdString();
     msg.body = body.toStdString();
     msg.timestamp = time(nullptr);
+    msg.id = generateMessageId();
 
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
     socket->flush();
 
-    qDebug() << "[DEBUG] Sent message to:" << to;
+    qDebug() << "[DEBUG] Sent message to:" << to << " with id:" << msg.id.c_str();
+}
+
+void MessengerClient::sendReply(const QString& to, const QString& body, const QString& replyToId)
+{
+    if (!connected) {
+        emit connectionError("Not connected to server");
+        return;
+    }
+
+    Message msg;
+    msg.type = "msg";
+    msg.from = username.toStdString();
+    msg.to = to.toStdString();
+    msg.body = body.toStdString();
+    msg.timestamp = time(nullptr);
+    msg.id = generateMessageId();
+    msg.reply_to = replyToId.toStdString();
+
+    std::string data = msg.serialize() + "\n";
+    socket->write(data.c_str());
+    socket->flush();
+
+    qDebug() << "[DEBUG] Sent reply to:" << to << " replying to:" << replyToId;
+}
+
+void MessengerClient::forwardMessage(const QString& to, const Message& original)
+{
+    if (!connected) {
+        emit connectionError("Not connected to server");
+        return;
+    }
+
+    Message msg;
+    msg.type = "msg";
+    msg.from = username.toStdString();
+    msg.to = to.toStdString();
+    msg.body = original.body;
+    msg.timestamp = time(nullptr);
+    msg.id = generateMessageId();
+    msg.is_forwarded = true;
+    msg.original_from = original.from;
+    msg.original_body = original.body;
+
+    std::string data = msg.serialize() + "\n";
+    socket->write(data.c_str());
+    socket->flush();
+
+    qDebug() << "[DEBUG] Forwarded message to:" << to;
 }
 
 void MessengerClient::requestHistory(const QString& withUser, int limit)
@@ -77,7 +126,7 @@ void MessengerClient::requestHistory(const QString& withUser, int limit)
     msg.type = "history";
     msg.from = username.toStdString();
     msg.to = withUser.toStdString();
-    msg.limit = limit;  // Используем отдельное поле вместо body
+    msg.limit = limit;
     msg.timestamp = time(nullptr);
 
     std::string data = msg.serialize() + "\n";
@@ -135,7 +184,6 @@ void MessengerClient::parseIncomingData(const QString& line)
 {
     qDebug() << "[DEBUG] Received:" << line;
 
-    // Пробуем распарсить как JSON
     if (line.startsWith('{')) {
         try {
             Message msg = Message::deserialize(line.toStdString());
@@ -143,7 +191,6 @@ void MessengerClient::parseIncomingData(const QString& line)
             if (msg.type == "auth_ok") {
                 emit deliveryStatus(QString::fromStdString(msg.body));
                 qDebug() << "[DEBUG] Authentication successful";
-                // После успешной аутентификации запрашиваем список пользователей
                 requestUserList();
             }
             else if (msg.type == "user_list") {
@@ -151,23 +198,16 @@ void MessengerClient::parseIncomingData(const QString& line)
                 for (const auto& user : msg.users) {
                     users.append(QString::fromStdString(user));
                 }
-                // Убираем себя из списка
                 users.removeAll(username);
                 users.removeAll(username + "*");
                 emit userListReceived(users);
                 qDebug() << "[DEBUG] User list received:" << users;
             }
             else if (msg.type == "msg") {
-                emit messageReceived(
-                    QString::fromStdString(msg.from),
-                    QString::fromStdString(msg.body),
-                    msg.timestamp
-                );
-                qDebug() << "[DEBUG] Message from:" << msg.from.c_str();
+                emit messageReceived(msg);
+                qDebug() << "[DEBUG] Message from:" << msg.from.c_str() << " id:" << msg.id.c_str();
             }
             else if (msg.type == "history") {
-                // История приходит как массив messages
-                // Для простоты пока обрабатываем через отдельные строки
                 if (msg.messages.empty()) {
                     emit historyReceived({});
                 }
@@ -187,7 +227,6 @@ void MessengerClient::parseIncomingData(const QString& line)
                 }
             }
             else if (msg.type == "history_line") {
-                // Для совместимости со старым форматом
                 emit historyReceived({ QString::fromStdString(msg.body) });
             }
             else if (msg.type == "delivered") {

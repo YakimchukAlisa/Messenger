@@ -23,8 +23,10 @@ public:
     ~MessengerClient();
 
     void connectToServer(const QString& host, int port, const QString& user);
-    void disconnectFromHost();                 
+    void disconnectFromHost();
     void sendMessage(const QString& to, const QString& body);
+    void sendReply(const QString& to, const QString& body, const QString& replyToId);
+    void forwardMessage(const QString& to, const Message& original);
     void requestHistory(const QString& withUser, int limit = 50);
     void login(const QString& username, const QString& password);
 
@@ -37,7 +39,7 @@ signals:
     void disconnectedFromServer();
     void connectionError(const QString& error);
 
-    void messageReceived(const QString& from, const QString& body, time_t timestamp);
+    void messageReceived(const Message& msg);
     void userListReceived(const QStringList& users);
     void historyReceived(const QStringList& historyLines);
     void deliveryStatus(const QString& status);

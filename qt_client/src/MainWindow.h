@@ -3,7 +3,6 @@
 
 #include <QMainWindow>
 #include <QListWidget>
-#include <QTextEdit>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSplitter>
@@ -12,8 +11,11 @@
 #include <QLabel>
 #include <QDateTime>
 #include <QStringList>
+#include <QMap>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QPoint>
 #include "MessengerClient.h"
-#include <QTimer>  
 
 class MainWindow : public QMainWindow
 {
@@ -25,33 +27,44 @@ private:
     QWidget* centralWidget;
     QSplitter* mainSplitter;
 
-    QListWidget* userList;      // Слева — список пользователей
-    QTextEdit* chatDisplay;     // Справа сверху — окно чата
-    QLineEdit* messageInput;    // Справа снизу — поле ввода
+    QListWidget* userList;
+    QListWidget* chatDisplay;  // ← ИЗМЕНЕНО: теперь QListWidget
+    QLineEdit* messageInput;
     QPushButton* sendButton;
     QLabel* statusLabel;
 
-    QString currentChatUser;    // С кем сейчас открыт чат
-    QStringList currentHistory; // История текущего чата
+    QString currentChatUser;
 
-    void updateChatDisplay();
+    QMap<QString, Message> messageCache;
+    QString pendingReplyId;
 
-    void appendMessage(const QString& sender, const QString& message,
-        const QString& time, bool isMe);
+    QString selectedMessageId;
+    Message selectedMessage;
+
+    void appendMessage(const Message& msg, bool isMe);
+    QWidget* createMessageWidget(const Message& msg, bool isMe, const QString& timeStr);
 
 public:
     MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
 private slots:
     void onUserSelected(const QModelIndex& index);
     void onSendMessage();
-    void onMessageReceived(const QString& from, const QString& body, long timestamp);
+    void onMessageReceived(const Message& msg);
     void onUserListReceived(const QStringList& users);
     void onHistoryReceived(const QStringList& historyLines);
     void onConnectionStatus(const QString& status);
     void onConnected();
     void onDisconnected();
+
+    void showContextMenu(const QPoint& pos);
+    void onReplyToMessage();
+    void onForwardMessage();
+    void onCopyMessage();
 };
 
 #endif
