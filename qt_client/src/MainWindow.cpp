@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include "LoginDialog.h"
+#include <QUuid>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -30,7 +31,6 @@ MainWindow::MainWindow(QWidget* parent)
         padding: 12px;
         border-radius: 8px;
         margin: 2px 5px;
-        color: #4a4a4a;
     }
     QListWidget#userList::item:hover {
         background-color: #f0e6ff;
@@ -219,12 +219,29 @@ void MainWindow::onSendMessage()
 
     if (!pendingReplyId.isEmpty()) {
         client->sendReply(currentChatUser, text, pendingReplyId);
+        Message localMsg;
+        localMsg.id = QUuid::createUuid().toString().toStdString();
+        localMsg.from = client->getUsername().toStdString();
+        localMsg.to = currentChatUser.toStdString();
+        localMsg.body = text.toStdString();
+        localMsg.timestamp = QDateTime::currentSecsSinceEpoch();
+        localMsg.reply_to = pendingReplyId.toStdString();
+
+        appendMessage(localMsg, true);
         pendingReplyId.clear();
         messageInput->setPlaceholderText("Type a message...");
         statusLabel->setText("✓ Connected as " + client->getUsername());
     }
     else {
         client->sendMessage(currentChatUser, text);
+        Message localMsg;
+        localMsg.id = QUuid::createUuid().toString().toStdString();
+        localMsg.from = client->getUsername().toStdString();
+        localMsg.to = currentChatUser.toStdString();
+        localMsg.body = text.toStdString();
+        localMsg.timestamp = QDateTime::currentSecsSinceEpoch();
+
+        appendMessage(localMsg, true);
     }
     messageInput->clear();
 }
@@ -375,6 +392,7 @@ void MainWindow::onUserListReceived(const QStringList& users)
         userList->addItem(item);
     }
 }
+
 
 void MainWindow::onHistoryReceived(const QStringList& historyLines)
 {
