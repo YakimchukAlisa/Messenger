@@ -30,6 +30,7 @@ public:
 
     bool isConnected() const { return connected; }
     QString getUsername() const { return username; }
+    void requestUserList();
 
 signals:
     void connectedToServer();
