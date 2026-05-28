@@ -28,7 +28,7 @@ private:
     QSplitter* mainSplitter;
 
     QListWidget* userList;
-    QListWidget* chatDisplay;  // ← ИЗМЕНЕНО: теперь QListWidget
+    QListWidget* chatDisplay;  
     QLineEdit* messageInput;
     QPushButton* sendButton;
     QLabel* statusLabel;
@@ -45,7 +45,10 @@ private:
     QWidget* createMessageWidget(const Message& msg, bool isMe, const QString& timeStr);
 
 public:
-    MainWindow(QWidget* parent = nullptr);
+    MainWindow(const QString& serverIP,
+        const QString& username,
+        const QString& password,
+        QWidget* parent = nullptr);
     ~MainWindow();
 
 protected:

@@ -12,7 +12,10 @@
 #include "LoginDialog.h"
 #include <QUuid>
 
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(const QString& serverIP,
+    const QString& username,
+    const QString& password,
+    QWidget* parent)
     : QMainWindow(parent)
     , client(new MessengerClient(this))
 {
@@ -151,16 +154,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(client, &MessengerClient::connectedToServer, this, &MainWindow::onConnected);
     connect(client, &MessengerClient::disconnectedFromServer, this, &MainWindow::onDisconnected);
 
-    LoginDialog loginDialog(this);
-    if (loginDialog.exec() != QDialog::Accepted) {
-        QApplication::quit();
-        return;
-    }
-
-    QString serverIP = loginDialog.getServerIp();
-    QString username = loginDialog.getUsername();
-    QString password = loginDialog.getPassword();
-
+    // Подключаемся к серверу
     connect(client, &MessengerClient::connectedToServer, this, [this, username, password]() {
         client->login(username, password);
         });
@@ -270,7 +264,7 @@ QWidget* MainWindow::createMessageWidget(const Message& msg, bool isMe, const QS
     // Блок forward, если есть
     if (msg.is_forwarded) {
         QLabel* forwardLabel = new QLabel();
-        forwardLabel->setText(QString("📤 Forwarded from <b>%1</b>")
+        forwardLabel->setText(QString(" Forwarded from <b>%1</b>")
             .arg(QString::fromStdString(msg.original_from)));
         forwardLabel->setStyleSheet("background-color:#e8e0ff; color:#4a4a4a; border-radius:6px; padding:5px; font-size:11px; border-left: 3px solid #6b3fa0;");
         layout->addWidget(forwardLabel);
@@ -451,10 +445,10 @@ void MainWindow::showContextMenu(const QPoint& pos)
     selectedMessage = messageCache[selectedMessageId];
 
     QMenu menu(this);
-    QAction* replyAction = menu.addAction("↩ Reply");
-    QAction* forwardAction = menu.addAction("📤 Forward");
+    QAction* replyAction = menu.addAction("↩Reply");
+    QAction* forwardAction = menu.addAction("Forward");
     menu.addSeparator();
-    QAction* copyAction = menu.addAction("📋 Copy");
+    QAction* copyAction = menu.addAction("Copy");
 
     QAction* selected = menu.exec(chatDisplay->viewport()->mapToGlobal(pos));
 
