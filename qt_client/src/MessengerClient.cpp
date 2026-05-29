@@ -7,6 +7,7 @@ MessengerClient::MessengerClient(QObject* parent)
     , socket(new QTcpSocket(this))
     , connected(false)
 {
+    // Подключаем сигналы сокета к слотам
     connect(socket, &QTcpSocket::connected, this, &MessengerClient::onConnected);
     connect(socket, &QTcpSocket::disconnected, this, &MessengerClient::onDisconnected);
     connect(socket, &QTcpSocket::readyRead, this, &MessengerClient::onReadyRead);
@@ -18,12 +19,14 @@ MessengerClient::~MessengerClient()
     if (connected) disconnectFromHost();
 }
 
+// Установка соединения с сервером
 void MessengerClient::connectToServer(const QString& host, int port, const QString& user)
 {
     username = user;
     socket->connectToHost(host, port);
 }
 
+// Принудительное отключение от сервера
 void MessengerClient::disconnectFromHost()
 {
     if (socket->state() == QAbstractSocket::ConnectedState) {
@@ -32,6 +35,7 @@ void MessengerClient::disconnectFromHost()
     connected = false;
 }
 
+// Аутентификация на сервере (отправка имени и пароля)
 void MessengerClient::login(const QString& username, const QString& password)
 {
     this->username = username;
@@ -48,6 +52,7 @@ void MessengerClient::login(const QString& username, const QString& password)
     qDebug() << "[DEBUG] Sent auth for:" << username;
 }
 
+// Отправка обычного сообщения
 void MessengerClient::sendMessage(const QString& to, const QString& body)
 {
     if (!connected) {
@@ -61,7 +66,7 @@ void MessengerClient::sendMessage(const QString& to, const QString& body)
     msg.to = to.toStdString();
     msg.body = body.toStdString();
     msg.timestamp = time(nullptr);
-    msg.id = generateMessageId();
+    msg.id = generateMessageId();  // Генерируем уникальный ID
 
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
@@ -70,6 +75,7 @@ void MessengerClient::sendMessage(const QString& to, const QString& body)
     qDebug() << "[DEBUG] Sent message to:" << to << " with id:" << msg.id.c_str();
 }
 
+// Отправка ответа на конкретное сообщение (reply)
 void MessengerClient::sendReply(const QString& to, const QString& body, const QString& replyToId)
 {
     if (!connected) {
@@ -84,7 +90,7 @@ void MessengerClient::sendReply(const QString& to, const QString& body, const QS
     msg.body = body.toStdString();
     msg.timestamp = time(nullptr);
     msg.id = generateMessageId();
-    msg.reply_to = replyToId.toStdString();
+    msg.reply_to = replyToId.toStdString();  // Указываем ID исходного сообщения
 
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
@@ -93,6 +99,7 @@ void MessengerClient::sendReply(const QString& to, const QString& body, const QS
     qDebug() << "[DEBUG] Sent reply to:" << to << " replying to:" << replyToId;
 }
 
+// Пересылка существующего сообщения другому пользователю
 void MessengerClient::forwardMessage(const QString& to, const Message& original)
 {
     if (!connected) {
@@ -104,12 +111,12 @@ void MessengerClient::forwardMessage(const QString& to, const Message& original)
     msg.type = "msg";
     msg.from = username.toStdString();
     msg.to = to.toStdString();
-    msg.body = original.body;
+    msg.body = original.body;          // Копируем текст
     msg.timestamp = time(nullptr);
     msg.id = generateMessageId();
-    msg.is_forwarded = true;
-    msg.original_from = original.from;
-    msg.original_body = original.body;
+    msg.is_forwarded = true;           // Помечаем как пересланное
+    msg.original_from = original.from; // Запоминаем оригинального отправителя
+    msg.original_body = original.body; // Запоминаем оригинальный текст
 
     std::string data = msg.serialize() + "\n";
     socket->write(data.c_str());
@@ -118,6 +125,7 @@ void MessengerClient::forwardMessage(const QString& to, const Message& original)
     qDebug() << "[DEBUG] Forwarded message to:" << to;
 }
 
+// Запрос истории переписки с указанным пользователем
 void MessengerClient::requestHistory(const QString& withUser, int limit)
 {
     if (!connected) return;
@@ -136,6 +144,7 @@ void MessengerClient::requestHistory(const QString& withUser, int limit)
     qDebug() << "[DEBUG] Requested history with:" << withUser;
 }
 
+// Запрос списка всех пользователей
 void MessengerClient::requestUserList()
 {
     if (!connected) return;
@@ -151,22 +160,26 @@ void MessengerClient::requestUserList()
     qDebug() << "[DEBUG] Requested user list";
 }
 
+// Слот: подключение к серверу установлено
 void MessengerClient::onConnected()
 {
     connected = true;
     emit connectedToServer();
 }
 
+// Слот: соединение разорвано
 void MessengerClient::onDisconnected()
 {
     connected = false;
     emit disconnectedFromServer();
 }
 
+// Слот: получены данные от сервера
 void MessengerClient::onReadyRead()
 {
     pendingData += QString::fromUtf8(socket->readAll());
 
+    // Разбираем сообщения по строкам (каждое сообщение заканчивается \n)
     while (pendingData.contains('\n')) {
         int newlinePos = pendingData.indexOf('\n');
         QString line = pendingData.left(newlinePos);
@@ -180,6 +193,7 @@ void MessengerClient::onReadyRead()
     }
 }
 
+// Парсинг входящих JSON-сообщений от сервера
 void MessengerClient::parseIncomingData(const QString& line)
 {
     qDebug() << "[DEBUG] Received:" << line;
@@ -189,11 +203,13 @@ void MessengerClient::parseIncomingData(const QString& line)
             Message msg = Message::deserialize(line.toStdString());
 
             if (msg.type == "auth_ok") {
+                // Успешная аутентификация
                 emit deliveryStatus(QString::fromStdString(msg.body));
                 qDebug() << "[DEBUG] Authentication successful";
-                requestUserList();
+                requestUserList();  // После логина запрашиваем список пользователей
             }
             else if (msg.type == "user_list") {
+                // Получен список пользователей
                 QStringList users;
                 for (const auto& user : msg.users) {
                     users.append(QString::fromStdString(user));
@@ -204,10 +220,12 @@ void MessengerClient::parseIncomingData(const QString& line)
                 qDebug() << "[DEBUG] User list received:" << users;
             }
             else if (msg.type == "msg") {
+                // Получено новое сообщение
                 emit messageReceived(msg);
                 qDebug() << "[DEBUG] Message from:" << msg.from.c_str() << " id:" << msg.id.c_str();
             }
             else if (msg.type == "history") {
+                // Получена история сообщений
                 if (msg.messages.empty()) {
                     emit historyReceived({});
                 }
@@ -227,12 +245,15 @@ void MessengerClient::parseIncomingData(const QString& line)
                 }
             }
             else if (msg.type == "history_line") {
+                // Для совместимости со старым форматом (построчная отправка)
                 emit historyReceived({ QString::fromStdString(msg.body) });
             }
             else if (msg.type == "delivered") {
+                // Подтверждение доставки сообщения
                 emit deliveryStatus("Message delivered to " + QString::fromStdString(msg.to));
             }
             else if (msg.type == "error") {
+                // Сообщение об ошибке от сервера
                 emit connectionError(QString::fromStdString(msg.body));
             }
             else {
@@ -245,6 +266,7 @@ void MessengerClient::parseIncomingData(const QString& line)
     }
 }
 
+// Обработка ошибок сокета
 void MessengerClient::onError(QAbstractSocket::SocketError error)
 {
     Q_UNUSED(error)

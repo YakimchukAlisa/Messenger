@@ -17,34 +17,45 @@
 #include <QPoint>
 #include "MessengerClient.h"
 
+// Главное окно мессенджера
+// Отвечает за отображение списка пользователей, чата,
+// отправку сообщений, контекстное меню (reply/forward/copy)
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 private:
+    // Сетевой клиент
     MessengerClient* client;
 
+    // Базовые виджеты
     QWidget* centralWidget;
-    QSplitter* mainSplitter;
+    QSplitter* mainSplitter;          // Разделитель между списком пользователей и чатом
 
-    QListWidget* userList;
-    QListWidget* chatDisplay;  
-    QLineEdit* messageInput;
-    QPushButton* sendButton;
-    QLabel* statusLabel;
+    // Элементы интерфейса
+    QListWidget* userList;            // Список пользователей (слева)
+    QListWidget* chatDisplay;         // Область отображения сообщений (справа)
+    QLineEdit* messageInput;          // Поле ввода сообщения
+    QPushButton* sendButton;          // Кнопка отправки
+    QLabel* statusLabel;              // Статусная строка
 
+    // Текущий выбранный пользователь для чата
     QString currentChatUser;
 
+    // Кэш сообщений (ID сообщения -> само сообщение)
     QMap<QString, Message> messageCache;
-    QString pendingReplyId;
+    QString pendingReplyId;           // ID сообщения, на которое готовится ответ
 
+    // Выбранное сообщение для контекстного меню
     QString selectedMessageId;
     Message selectedMessage;
 
-    void appendMessage(const Message& msg, bool isMe);
-    QWidget* createMessageWidget(const Message& msg, bool isMe, const QString& timeStr);
+    // Вспомогательные методы
+    void appendMessage(const Message& msg, bool isMe);               // Добавление сообщения в чат
+    QWidget* createMessageWidget(const Message& msg, bool isMe, const QString& timeStr);  // Создание виджета сообщения
 
 public:
+    // Конструктор принимает IP сервера, имя пользователя и пароль из диалога логина
     MainWindow(const QString& serverIP,
         const QString& username,
         const QString& password,
@@ -52,22 +63,27 @@ public:
     ~MainWindow();
 
 protected:
+    // Обработка нажатий клавиш (ESC для отмены ответа)
     void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
-    void onUserSelected(const QModelIndex& index);
-    void onSendMessage();
-    void onMessageReceived(const Message& msg);
-    void onUserListReceived(const QStringList& users);
-    void onHistoryReceived(const QStringList& historyLines);
-    void onConnectionStatus(const QString& status);
-    void onConnected();
-    void onDisconnected();
+    // Обработчики событий интерфейса
+    void onUserSelected(const QModelIndex& index);   // Выбор пользователя из списка
+    void onSendMessage();                            // Отправка сообщения
 
-    void showContextMenu(const QPoint& pos);
-    void onReplyToMessage();
-    void onForwardMessage();
-    void onCopyMessage();
+    // Обработчики событий от сетевого клиента
+    void onMessageReceived(const Message& msg);      // Получено новое сообщение
+    void onUserListReceived(const QStringList& users);  // Обновление списка пользователей
+    void onHistoryReceived(const QStringList& historyLines);  // Получена история переписки
+    void onConnectionStatus(const QString& status);  // Изменение статуса соединения
+    void onConnected();                              // Подключение к серверу установлено
+    void onDisconnected();                           // Отключение от сервера
+
+    // Контекстное меню (правой кнопкой мыши по сообщению)
+    void showContextMenu(const QPoint& pos);         // Показ меню
+    void onReplyToMessage();                         // Ответ на выбранное сообщение
+    void onForwardMessage();                         // Пересылка выбранного сообщения
+    void onCopyMessage();                            // Копирование текста выбранного сообщения
 };
 
 #endif

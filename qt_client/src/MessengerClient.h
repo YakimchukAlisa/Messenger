@@ -6,49 +6,60 @@
 #include <QStringList>
 #include "../../common/Protocol.h"
 
+// Клиент для сетевого взаимодействия с сервером мессенджера
+// Отвечает за подключение, отправку сообщений, приём данных от сервера
 class MessengerClient : public QObject
 {
     Q_OBJECT
 
 private:
-    QTcpSocket* socket;
-    QString username;
-    bool connected;
-    QString pendingData;
+    QTcpSocket* socket;          // TCP-сокет для связи с сервером
+    QString username;            // Имя текущего пользователя
+    bool connected;              // Флаг подключения к серверу
+    QString pendingData;         // Буфер для накопления данных (т.к. данные могут приходить частями)
 
-    void parseIncomingData(const QString& data);
+    void parseIncomingData(const QString& data);  // Парсинг входящих JSON-сообщений
 
 public:
     explicit MessengerClient(QObject* parent = nullptr);
     ~MessengerClient();
 
-    void connectToServer(const QString& host, int port, const QString& user);
-    void disconnectFromHost();
-    void sendMessage(const QString& to, const QString& body);
-    void sendReply(const QString& to, const QString& body, const QString& replyToId);
-    void forwardMessage(const QString& to, const Message& original);
-    void requestHistory(const QString& withUser, int limit = 50);
-    void login(const QString& username, const QString& password);
+    // Управление соединением
+    void connectToServer(const QString& host, int port, const QString& user);  // Подключение к серверу
+    void disconnectFromHost();                                                  // Отключение от сервера
 
+    // Отправка сообщений
+    void sendMessage(const QString& to, const QString& body);          // Обычное сообщение
+    void sendReply(const QString& to, const QString& body, const QString& replyToId);  // Ответ на сообщение
+    void forwardMessage(const QString& to, const Message& original);   // Пересылка сообщения
+
+    // Запросы к серверу
+    void requestHistory(const QString& withUser, int limit = 50);      // Запрос истории переписки
+    void login(const QString& username, const QString& password);      // Аутентификация
+    void requestUserList();                                            // Запрос списка пользователей
+
+    // Геттеры
     bool isConnected() const { return connected; }
     QString getUsername() const { return username; }
-    void requestUserList();
 
 signals:
-    void connectedToServer();
-    void disconnectedFromServer();
-    void connectionError(const QString& error);
+    // Сигналы состояния соединения
+    void connectedToServer();          // Успешное подключение к серверу
+    void disconnectedFromServer();     // Отключение от сервера
+    void connectionError(const QString& error);  // Ошибка соединения
 
-    void messageReceived(const Message& msg);
-    void userListReceived(const QStringList& users);
-    void historyReceived(const QStringList& historyLines);
-    void deliveryStatus(const QString& status);
+    // Сигналы получения данных от сервера
+    void messageReceived(const Message& msg);                 // Новое сообщение
+    void userListReceived(const QStringList& users);        // Список пользователей
+    void historyReceived(const QStringList& historyLines);  // История переписки
+    void deliveryStatus(const QString& status);             // Статус доставки
 
 private slots:
-    void onConnected();
-    void onDisconnected();
-    void onReadyRead();
-    void onError(QAbstractSocket::SocketError error);
+    // Обработчики событий сокета
+    void onConnected();        // Сокет подключился
+    void onDisconnected();     // Сокет отключился
+    void onReadyRead();        // Пришли данные от сервера
+    void onError(QAbstractSocket::SocketError error);  // Ошибка сокета
 };
 
 #endif

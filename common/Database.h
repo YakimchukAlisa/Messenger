@@ -9,12 +9,15 @@
 #include <string>
 #include <vector>
 
+// Класс-одиночка (Singleton) для работы с базой данных SQLite
+// Хранит пользователей, сообщения (с поддержкой reply и forward), системные логи
 class Database {
 private:
-    sqlite3* db = nullptr;
-    std::mutex dbMutex;
-    static Database* instance;
+    sqlite3* db = nullptr;          // Указатель на объект базы данных SQLite
+    std::mutex dbMutex;             // Мьютекс для потокобезопасного доступа
+    static Database* instance;      // Статический указатель для Singleton
 
+    // Приватный конструктор (Singleton) - открывает БД и создаёт таблицы
     Database() {
         open();
         createTables();
@@ -27,6 +30,7 @@ private:
         }
     }
 
+    // Открытие файла базы данных (создаёт если нет)
     void open() {
         int rc = sqlite3_open("messenger.db", &db);
         if (rc != SQLITE_OK) {
@@ -37,7 +41,9 @@ private:
         }
     }
 
+    // Создание всех необходимых таблиц (если не существуют)
     void createTables() {
+        // Таблица личных сообщений с поддержкой reply и forward
         const char* sqlMessages = R"(
         CREATE TABLE IF NOT EXISTS private_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +60,7 @@ private:
         );
     )";
 
+        // Таблица системных логов
         const char* sqlLogs = R"(
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +70,7 @@ private:
         );
     )";
 
+        // Таблица пользователей
         const char* sqlUsers = R"(
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +104,7 @@ private:
     }
 
 public:
+    // Получение экземпляра Singleton (потокобезопасно в C++11)
     static Database& getInstance() {
         if (!instance) {
             instance = new Database();
@@ -103,6 +112,7 @@ public:
         return *instance;
     }
 
+    // Сохранение сообщения в базу (поддерживает reply и forward)
     void saveMessage(
         const std::string& messageId,
         const std::string& from,
@@ -149,6 +159,8 @@ public:
         sqlite3_finalize(stmt);
     }
 
+    // Получение истории переписки между двумя пользователями
+    // Возвращает вектор строк с метаданными (разделитель |||)
     std::vector<std::string> getHistory(
         const std::string& user1,
         const std::string& user2,
@@ -203,7 +215,7 @@ public:
 
             std::string line = "[" + std::string(timeStr) + "] " + from + ": " + msg;
 
-            // Добавляем метаданные через специальный разделитель
+            // Добавляем метаданные через разделитель ||| для последующего парсинга
             if (msgId && replyTo) {
                 line += "|||" + std::string(msgId) + "|||" + std::string(replyTo);
                 line += "|||" + std::to_string(isForwarded) + "|||" + (origFrom ? origFrom : "") + "|||" + (origBody ? origBody : "");
@@ -213,11 +225,12 @@ public:
         }
 
         sqlite3_finalize(stmt);
-        std::reverse(history.begin(), history.end());
+        std::reverse(history.begin(), history.end());  // Сначала старые сообщения
 
         return history;
     }
 
+    // Сохранение системного события в лог
     void saveLog(
         const std::string& eventType,
         const std::string& details,
@@ -246,6 +259,7 @@ public:
         sqlite3_finalize(stmt);
     }
 
+    // Регистрация нового пользователя
     bool registerUser(const std::string& username, const std::string& passwordHash) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -272,6 +286,7 @@ public:
         return true;
     }
 
+    // Проверка логина (сравнение хеша пароля)
     bool loginUser(const std::string& username, const std::string& passwordHash) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -298,6 +313,7 @@ public:
         return false;
     }
 
+    // Проверка существования пользователя
     bool userExists(const std::string& username) {
         std::lock_guard<std::mutex> lock(dbMutex);
 
@@ -312,9 +328,10 @@ public:
         rc = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
 
-        return rc == SQLITE_ROW;
+        return rc == SQLITE_ROW;  // SQLITE_ROW означает, что запись найдена
     }
 
+    // Получение списка всех зарегистрированных пользователей
     std::vector<std::string> getAllUsers() {
         std::lock_guard<std::mutex> lock(dbMutex);
         std::vector<std::string> users;
@@ -335,6 +352,7 @@ public:
     }
 };
 
+// Инициализация статического члена класса (обязательно вне класса)
 inline Database* Database::instance = nullptr;
 
 #endif

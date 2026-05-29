@@ -7,6 +7,7 @@ LoginDialog::LoginDialog(QWidget* parent)
     setWindowTitle("Messenger - Login");
     resize(900, 650);
 
+    // Стилизация окна (CSS-подобные правила)
     setStyleSheet(R"(
         QDialog {
             background-color: #f8f9fa;
@@ -65,23 +66,24 @@ LoginDialog::LoginDialog(QWidget* parent)
         }
     )");
 
+    // Основной вертикальный layout с отступами
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(15);
     mainLayout->setContentsMargins(40, 40, 40, 40);
 
-    // Заголовок
+    // Заголовок окна
     QLabel* titleLabel = new QLabel("Messenger");
     titleLabel->setObjectName("titleLabel");
     titleLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(titleLabel);
 
-    // Подзаголовок
+    // Подзаголовок с приветствием
     QLabel* subtitleLabel = new QLabel("Welcome back! Please login or register");
     subtitleLabel->setStyleSheet("color: #8e6eb0; font-size: 12px; margin-bottom: 20px;");
     subtitleLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(subtitleLabel);
 
-    // Сервер
+    // Поле для ввода IP-адреса сервера (по умолчанию localhost)
     QLabel* serverLabel = new QLabel("Server IP:");
     serverIpEdit = new QLineEdit();
     serverIpEdit->setPlaceholderText("127.0.0.1");
@@ -89,29 +91,29 @@ LoginDialog::LoginDialog(QWidget* parent)
     mainLayout->addWidget(serverLabel);
     mainLayout->addWidget(serverIpEdit);
 
-    // Логин
+    // Поле для ввода имени пользователя
     QLabel* usernameLabel = new QLabel("Username:");
     usernameEdit = new QLineEdit();
     usernameEdit->setPlaceholderText("Enter your username");
     mainLayout->addWidget(usernameLabel);
     mainLayout->addWidget(usernameEdit);
 
-    // Пароль
+    // Поле для ввода пароля (скрытый ввод)
     QLabel* passwordLabel = new QLabel("Password:");
     passwordEdit = new QLineEdit();
     passwordEdit->setPlaceholderText("Enter your password");
-    passwordEdit->setEchoMode(QLineEdit::Password);
+    passwordEdit->setEchoMode(QLineEdit::Password);  // Скрываем символы
     mainLayout->addWidget(passwordLabel);
     mainLayout->addWidget(passwordEdit);
 
-    // Статус ошибки
+    // Метка для отображения сообщений об ошибках (изначально скрыта)
     statusLabel = new QLabel();
     statusLabel->setObjectName("statusLabel");
     statusLabel->setVisible(false);
     statusLabel->setWordWrap(true);
     mainLayout->addWidget(statusLabel);
 
-    // Кнопки
+    // Блок кнопок
     QHBoxLayout* buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
 
@@ -119,7 +121,7 @@ LoginDialog::LoginDialog(QWidget* parent)
     cancelButton->setObjectName("cancelButton");
     loginButton = new QPushButton("Login / Register");
 
-    // ОТКЛЮЧАЕМ АВТОМАТИЧЕСКОЕ ПОВЕДЕНИЕ ENTER
+    // Отключаем автоматическое поведение Enter, чтобы окно не закрывалось до проверки
     loginButton->setDefault(false);
     loginButton->setAutoDefault(false);
     cancelButton->setDefault(false);
@@ -131,12 +133,12 @@ LoginDialog::LoginDialog(QWidget* parent)
 
     mainLayout->addLayout(buttonLayout);
 
-
-    // Сигналы
+    // Подключение сигналов кнопок
     connect(loginButton, &QPushButton::clicked, this, &LoginDialog::onLoginClicked);
     connect(cancelButton, &QPushButton::clicked, this, &LoginDialog::onCancelClicked);
 
-    // Enter через QTimer, чтобы не закрывало окно до проверки
+    // Обработка нажатия Enter в полях username и password
+    // QTimer::singleShot(0, ...) нужен, чтобы окно не закрывалось до выполнения проверки
     connect(usernameEdit, &QLineEdit::returnPressed, this, [this]() {
         QTimer::singleShot(0, this, &LoginDialog::onLoginClicked);
         });
@@ -144,59 +146,66 @@ LoginDialog::LoginDialog(QWidget* parent)
         QTimer::singleShot(0, this, &LoginDialog::onLoginClicked);
         });
 
-    usernameEdit->setFocus();
+    usernameEdit->setFocus();  // Устанавливаем фокус на поле имени
 }
 
+// Обработчик нажатия кнопки Login / Register
 void LoginDialog::onLoginClicked()
 {
-    QString username = usernameEdit->text().trimmed();
+    QString username = usernameEdit->text().trimmed();  // Убираем лишние пробелы
     QString password = passwordEdit->text();
 
+    // Проверка: имя не должно быть пустым
     if (username.isEmpty()) {
         showError("Username cannot be empty");
         usernameEdit->setFocus();
         return;
     }
 
+    // Проверка: пароль не должен быть пустым
     if (password.isEmpty()) {
         showError("Password cannot be empty");
         passwordEdit->setFocus();
         return;
     }
 
-
-    // Все проверки пройдены
+    // Все проверки пройдены — закрываем диалог с кодом Accepted
     accept();
 }
 
+// Обработчик нажатия кнопки Cancel
 void LoginDialog::onCancelClicked()
 {
-    reject();
+    reject();  // Закрываем диалог с кодом Rejected
 }
 
+// Возвращает введённый IP-адрес сервера
 QString LoginDialog::getServerIp() const
 {
     return serverIpEdit->text().trimmed();
 }
 
+// Возвращает введённое имя пользователя
 QString LoginDialog::getUsername() const
 {
     return usernameEdit->text().trimmed();
 }
 
+// Возвращает введённый пароль
 QString LoginDialog::getPassword() const
 {
     return passwordEdit->text();
 }
 
+// Показывает сообщение об ошибке (красная метка)
 void LoginDialog::showError(const QString& message)
 {
     statusLabel->setText(message);
     statusLabel->show();
-    statusLabel->raise();
-    statusLabel->update();
+    statusLabel->raise();   // Поднимаем на передний план
+    statusLabel->update();  // Принудительное обновление
 
-    // Автоматически скрыть через 3 секунды
+    // Автоматически скрыть сообщение через 3 секунды
     QTimer::singleShot(3000, this, [this]() {
         if (statusLabel) {
             statusLabel->hide();
@@ -204,6 +213,7 @@ void LoginDialog::showError(const QString& message)
         });
 }
 
+// Скрывает сообщение об ошибке
 void LoginDialog::clearError()
 {
     statusLabel->hide();

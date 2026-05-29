@@ -7,26 +7,38 @@
 
 using json = nlohmann::json;
 
+// Структура сообщения для обмена между клиентом и сервером
+// Поддерживает: аутентификацию, текстовые сообщения, ответы (reply), пересылку (forward)
 struct Message {
-    std::string type;
-    std::string from;
-    std::string to;
-    std::string body;
-    std::string group;
-    std::vector<std::string> users;
-    std::vector<Message> messages;
-    int limit = 0;
-    int code = 0;
-    time_t timestamp = 0;
-    std::string msg_id;
+    // Основные поля
+    std::string type;              // Тип сообщения: "auth", "msg", "history", "user_list" и т.д.
+    std::string from;             // Отправитель
+    std::string to;               // Получатель
+    std::string body;             // Текст сообщения
+    std::string group;            // Название группы (для групповых чатов)
 
-    // Новые поля
-    std::string id;
-    std::string reply_to;
-    bool is_forwarded = false;
-    std::string original_from;
-    std::string original_body;
+    // Списки и вложенные сообщения
+    std::vector<std::string> users;      // Список пользователей (для user_list)
+    std::vector<Message> messages;       // Вложенные сообщения (для истории)
 
+    // Параметры запросов и ответов
+    int limit = 0;                 // Лимит для запроса истории
+    int code = 0;                  // Код ошибки (для error)
+    time_t timestamp = 0;          // Временная метка сообщения
+
+    // Идентификаторы
+    std::string msg_id;            // ID сообщения (альтернативное поле)
+    std::string id;                // Уникальный ID сообщения
+
+    // Поддержка ответов (reply)
+    std::string reply_to;          // ID сообщения, на которое отвечаем
+
+    // Поддержка пересылки (forward)
+    bool is_forwarded = false;     // Флаг, что сообщение переслано
+    std::string original_from;     // Оригинальный отправитель
+    std::string original_body;     // Оригинальный текст сообщения
+
+    // Преобразование сообщения в JSON-строку для отправки
     std::string serialize() const {
         json j;
         j["type"] = type;
@@ -40,16 +52,17 @@ struct Message {
         if (timestamp != 0) j["timestamp"] = timestamp;
         if (!msg_id.empty()) j["msg_id"] = msg_id;
 
-        // Новые поля
+        // Поля для reply и forward
         if (!id.empty()) j["id"] = id;
         if (!reply_to.empty()) j["reply_to"] = reply_to;
         if (is_forwarded) j["is_forwarded"] = is_forwarded;
         if (!original_from.empty()) j["original_from"] = original_from;
         if (!original_body.empty()) j["original_body"] = original_body;
 
-        return j.dump() + "\n";
+        return j.dump() + "\n";  // Добавляем символ новой строки как разделитель
     }
 
+    // Преобразование JSON-строки обратно в структуру Message
     static Message deserialize(const std::string& data) {
         json j = json::parse(data);
         Message msg;
@@ -63,7 +76,7 @@ struct Message {
         msg.timestamp = j.value("timestamp", 0);
         msg.msg_id = j.value("msg_id", "");
 
-        // Новые поля
+        // Десериализация полей reply и forward
         msg.id = j.value("id", "");
         msg.reply_to = j.value("reply_to", "");
         msg.is_forwarded = j.value("is_forwarded", false);

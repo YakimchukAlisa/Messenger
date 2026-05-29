@@ -14,17 +14,21 @@
 #include "../../common/PasswordHash.h"
 #include "../../common/IdGenerator.h"
 
-#define PORT 7777
+#define PORT 7777  // Порт для подключения клиентов
 
-std::map<int, std::string> clients;
-std::map<std::string, int> userToSocket;
-std::mutex clientsMutex;
+// Глобальные данные для отслеживания подключённых клиентов
+std::map<int, std::string> clients;          // Сокет -> имя пользователя
+std::map<std::string, int> userToSocket;     // Имя пользователя -> сокет
+std::mutex clientsMutex;                     // Мьютекс для потокобезопасного доступа
 
+// Рассылка списка всех пользователей всем подключённым клиентам
 void broadcastUserList() {
+    // Получаем всех зарегистрированных пользователей из базы данных
     std::vector<std::string> allUsers = Database::getInstance().getAllUsers();
 
     std::cout << "[DEBUG] Broadcasting user list, users count: " << allUsers.size() << std::endl;
 
+    // Формируем JSON-сообщение со списком пользователей
     Message userListMsg;
     userListMsg.type = "user_list";
 
@@ -35,6 +39,7 @@ void broadcastUserList() {
             isOnline = (userToSocket.find(name) != userToSocket.end());
         }
 
+        // Онлайн-пользователей помечаем звёздочкой
         if (isOnline) {
             userListMsg.users.push_back(name + "*");
         }
@@ -43,6 +48,7 @@ void broadcastUserList() {
         }
     }
 
+    // Отправляем список каждому подключённому клиенту
     std::lock_guard<std::mutex> lock(clientsMutex);
     std::string serialized = userListMsg.serialize() + "\n";
 
@@ -53,22 +59,26 @@ void broadcastUserList() {
     }
 }
 
+// Обработка подключения одного клиента (работает в отдельном потоке)
 void handleClient(int clientSocket) {
     char buffer[4096];
-    std::string pendingData;
+    std::string pendingData;  // Буфер для накопления данных от клиента
 
+    // Получаем первое сообщение — аутентификацию
     int n = recv(clientSocket, buffer, 4095, 0);
     if (n <= 0) return;
     buffer[n] = '\0';
 
     std::string data(buffer);
 
+    // Удаляем символы перевода строки
     while (!data.empty() && (data.back() == '\n' || data.back() == '\r')) {
         data.pop_back();
     }
 
     std::cout << "[DEBUG] Received auth: " << data << std::endl;
 
+    // Парсим JSON
     Message msg;
     try {
         msg = Message::deserialize(data);
@@ -79,6 +89,7 @@ void handleClient(int clientSocket) {
         return;
     }
 
+    // Первое сообщение обязательно должно быть типа "auth"
     if (msg.type != "auth") {
         send(clientSocket, "{\"type\":\"error\",\"code\":400,\"body\":\"First message must be auth\"}\n", 60, 0);
         close(clientSocket);
@@ -88,6 +99,7 @@ void handleClient(int clientSocket) {
     std::string username = msg.from;
     std::string password = msg.body;
 
+    // Очистка от лишних символов
     while (!username.empty() && (username.back() == '\n' || username.back() == '\r')) {
         username.pop_back();
     }
@@ -95,8 +107,10 @@ void handleClient(int clientSocket) {
         password.pop_back();
     }
 
+    // Хешируем пароль для безопасного хранения
     std::string passwordHash = simpleHash(password);
 
+    // Проверяем или регистрируем пользователя
     bool loginSuccess = false;
     if (Database::getInstance().userExists(username)) {
         if (Database::getInstance().loginUser(username, passwordHash)) {
@@ -121,19 +135,23 @@ void handleClient(int clientSocket) {
         return;
     }
 
+    // Добавляем пользователя в список онлайн
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients[clientSocket] = username;
         userToSocket[username] = clientSocket;
     }
 
+    // Отправляем подтверждение успешного входа
     Message welcome;
     welcome.type = "auth_ok";
     welcome.body = "Welcome, " + username + "!";
     send(clientSocket, welcome.serialize().c_str(), welcome.serialize().size(), 0);
 
+    // Рассылаем обновлённый список пользователей всем клиентам
     broadcastUserList();
 
+    // Основной цикл обработки сообщений от клиента
     while (true) {
         n = recv(clientSocket, buffer, 4095, 0);
         if (n <= 0) break;
@@ -141,6 +159,7 @@ void handleClient(int clientSocket) {
 
         pendingData += buffer;
 
+        // Разбираем сообщения по строкам (каждое сообщение заканчивается \n)
         size_t pos;
         while ((pos = pendingData.find('\n')) != std::string::npos) {
             std::string line = pendingData.substr(0, pos);
@@ -154,6 +173,7 @@ void handleClient(int clientSocket) {
 
             std::cout << "[DEBUG] Received: " << line << std::endl;
 
+            // Парсим JSON
             Message msg;
             try {
                 msg = Message::deserialize(line);
@@ -169,7 +189,9 @@ void handleClient(int clientSocket) {
 
             std::cout << "[DEBUG] Message type: " << msg.type << std::endl;
 
+            // Обработка обычного сообщения
             if (msg.type == "msg") {
+                // Проверка: отправитель должен совпадать с авторизованным пользователем
                 if (msg.from != username) {
                     Message error;
                     error.type = "error";
@@ -179,6 +201,7 @@ void handleClient(int clientSocket) {
                     continue;
                 }
 
+                // Нельзя отправить сообщение самому себе
                 if (msg.from == msg.to) {
                     Message error;
                     error.type = "error";
@@ -193,7 +216,7 @@ void handleClient(int clientSocket) {
                     msg.id = generateMessageId();
                 }
 
-                // Сохраняем в базу данных со всеми новыми полями
+                // Сохраняем сообщение в базу данных
                 Database::getInstance().saveMessage(
                     msg.id,
                     msg.from,
@@ -246,6 +269,8 @@ void handleClient(int clientSocket) {
                 }
                 send(clientSocket, deliveryStatus.serialize().c_str(), deliveryStatus.serialize().size(), 0);
             }
+
+            // Обработка запроса истории переписки
             else if (msg.type == "history") {
                 int limit = msg.limit > 0 ? msg.limit : 50;
                 std::cout << "[DEBUG] History request for " << msg.from << " with " << msg.to << ", limit=" << limit << std::endl;
@@ -254,10 +279,12 @@ void handleClient(int clientSocket) {
 
                 std::cout << "[DEBUG] Found " << history.size() << " messages" << std::endl;
 
+                // Отправляем историю частями
                 std::string historyStart = "{\"type\":\"history_start\"}\n";
                 send(clientSocket, historyStart.c_str(), historyStart.size(), 0);
 
                 for (const auto& line : history) {
+                    // Экранируем кавычки в строке
                     std::string escaped = line;
                     size_t pos = 0;
                     while ((pos = escaped.find('"', pos)) != std::string::npos) {
@@ -272,6 +299,8 @@ void handleClient(int clientSocket) {
                 std::string historyEnd = "{\"type\":\"history_end\"}\n";
                 send(clientSocket, historyEnd.c_str(), historyEnd.size(), 0);
             }
+
+            // Обработка запроса списка пользователей
             else if (msg.type == "list_users") {
                 std::vector<std::string> allUsers = Database::getInstance().getAllUsers();
 
@@ -285,6 +314,7 @@ void handleClient(int clientSocket) {
                         isOnline = (userToSocket.find(name) != userToSocket.end());
                     }
 
+                    // Не включаем в список самого себя
                     if (isOnline && name != username) {
                         userList.users.push_back(name + "*");
                     }
@@ -298,6 +328,7 @@ void handleClient(int clientSocket) {
         }
     }
 
+    // Клиент отключился — удаляем его из списка онлайн
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients.erase(clientSocket);
@@ -305,22 +336,25 @@ void handleClient(int clientSocket) {
     }
 
     Logger::getInstance().log("USER_LOGOUT: " + username);
-    broadcastUserList();
+    broadcastUserList();  // Оповещаем остальных об изменении списка
     close(clientSocket);
 }
 
 int main() {
+    // Создаём серверный сокет
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(PORT);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = INADDR_ANY;  // Слушаем все сетевые интерфейсы
 
+    // Привязываем сокет к порту
     if (bind(serverSocket, (sockaddr*)&addr, sizeof(addr)) < 0) {
         std::cerr << "Bind failed!" << std::endl;
         return 1;
     }
 
+    // Начинаем слушать входящие подключения
     if (listen(serverSocket, 10) < 0) {
         std::cerr << "Listen failed!" << std::endl;
         return 1;
@@ -329,6 +363,7 @@ int main() {
     Logger::getInstance().log("SERVER STARTED on port " + std::to_string(PORT));
     std::cout << "Server running on port " << PORT << std::endl;
 
+    // Основной цикл: принимаем новых клиентов
     while (true) {
         int clientSocket = accept(serverSocket, nullptr, nullptr);
         if (clientSocket < 0) {
@@ -336,8 +371,10 @@ int main() {
             continue;
         }
         std::cout << "[DEBUG] New client connected" << std::endl;
+
+        // Создаём отдельный поток для каждого клиента
         std::thread t(handleClient, clientSocket);
-        t.detach();
+        t.detach();  // Отсоединяем поток, чтобы он жил независимо
     }
 
     return 0;

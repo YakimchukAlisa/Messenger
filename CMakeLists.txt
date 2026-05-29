@@ -57,22 +57,6 @@ target_link_libraries(messenger_server
     nlohmann_json
 )
 
-# ========== КОНСОЛЬНЫЙ КЛИЕНТ ==========
-add_executable(messenger_client 
-    client/src/main.cpp
-)
-
-target_include_directories(messenger_client PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR} 
-    ${SQLITE3_INCLUDE_DIR}
-)
-
-target_link_libraries(messenger_client 
-    Threads::Threads 
-    ${SQLITE3_LIBRARY}
-    nlohmann_json
-)
-
 # ========== QT GUI КЛИЕНТ ==========
 find_package(Qt6 COMPONENTS Core Widgets Network QUIET)
 
